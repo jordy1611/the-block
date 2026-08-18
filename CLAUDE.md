@@ -5,8 +5,9 @@ and places bids. 200 vehicles, static dataset, no backend.
 
 ## Workflow
 
-- One branch per phase, named `phase-N-short-name`, merged into `main` when the
-  phase is done. **No pull requests** — merge locally.
+- One branch per phase, named for the work itself (`data-layer`, `inventory`,
+  `bid-flow`), merged into `main` when the phase is done. **No pull requests** —
+  merge locally.
 - Merge with `--no-ff` so each phase stays a visible unit in the history. The repo
   gets screen-shared during the walkthrough; a readable log is part of the deliverable.
 - Never commit feature work directly to `main`.
@@ -14,7 +15,7 @@ and places bids. 200 vehicles, static dataset, no backend.
 ## Commands
 
 - `npm install`
-- `npm run dev` — Vite dev server on :5173
+- `npm run dev` — Vite dev server on **:8080** (pinned, `strictPort`)
 - `npm run build`
 - `npm run typecheck` — `tsc -b`
 - `npm run lint` — oxlint (not eslint; that is what the Vite template ships now)
