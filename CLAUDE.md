@@ -40,6 +40,9 @@ src/
     layout/             Header, PageContainer, page scaffolding
     vehicle/            shared domain — ConditionGrade, TitleBadge
 
+  hooks/                shared React hooks
+    useAsync.ts         runs a promise, returns { data, loading, error }
+
   pages/                one folder per route
     inventory/
       InventoryPage.tsx
@@ -49,8 +52,8 @@ src/
       components/       page-scoped — BidPanel, PhotoGallery
 
   services/             anything that talks to the outside world
-    http.ts             fetch wrapper: latency, error flag, !res.ok handling
-    vehicles.ts         loadVehicles() — returns Vehicle[]
+    http.ts             CRUD over fetch: latency, error flag, !res.ok, aborts
+    vehicles.ts         loadVehicles(), loadVehicleById() — cached promise
 
   store/                global client state
     bidStore.ts         observable store + useBids hook (Phase 4)
@@ -106,12 +109,23 @@ Mantine needs `postcss.config.cjs` at the root. Do not delete it.
 
 ## Async conventions
 
-- `async/await` is the house style.
-- `IntersectionObserver` for image lazy-loading in the inventory grid.
-- Bid state lives in an observable store consumed via `useSyncExternalStore`, so a
-  bid updates the detail view and the list card at once.
+- `async/await` is the house style. **Services return Promises, not Observables.**
+- Components never call `fetch` or a service directly — they go through
+  `useAsync(factory, key)`, which owns the loading/error/success state.
+- `loadVehicles()` caches the promise, so the 288KB dataset is fetched once for
+  the whole app. A rejection clears the cache so a retry actually retries.
+- That shared promise takes **no AbortSignal** on purpose: one component
+  unmounting must not cancel the load for everyone else. `useAsync` discards the
+  result via a `cancelled` flag instead. `http` still accepts a signal for any
+  request that is not shared.
 - Artificial latency is ~300ms, in one place. The error path is triggered by an
-  explicit flag — never a random failure rate.
+  explicit flag (`?simulateError`) — never a random failure rate.
+- `IntersectionObserver` for image lazy-loading in the inventory grid.
+
+**RxJS is installed but deliberately unused so far.** It is reserved for the two
+places it beats hand-rolled code: `debounceTime` + `switchMap` for inventory
+search (Phase 2), and a `BehaviorSubject` for the bid store (Phase 4). Do not
+reach for it in the service layer — a single cached GET gains nothing from it.
 
 ## Components
 

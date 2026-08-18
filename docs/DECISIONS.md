@@ -80,5 +80,27 @@ built with a single app-level ticker rather than an interval per card, and cards
 coarse granularity while only the detail view counts seconds — 200 cards updating every
 second would be waste, not polish.
 
+**Services expose Promises, not Observables — RxJS is scoped to where it wins.** The data
+layer was first built on RxJS and then deliberately reverted. For a single cached GET of a
+static file, `fromFetch` + `shareReplay` bought nothing that `async/await` + a cached promise
+does not, and RxJS is a minority choice in React that would need defending on every file it
+touched. It stays installed for the two cases where it genuinely beats hand-rolled code:
+`debounceTime` + `switchMap` for search, where the promise version means a timer ref and a
+stale-response guard written by hand, and a `BehaviorSubject` for the bid store.
+
+**The inventory promise is cached, not the result.** Concurrent callers during the first load
+await the same request rather than each firing their own. A rejection nulls the cache so the
+retry action actually retries instead of replaying the same failure.
+
+**The shared inventory request takes no AbortSignal.** Aborting it from one unmounting
+component would cancel the load for every other consumer. `useAsync` discards late results
+with a `cancelled` flag instead — cancellation at the component's own scope, not the shared
+resource's. `http` still accepts a signal for any request that is not shared.
+
+**`useAsync` stores the key alongside the result.** When the key changes, the stored entry no
+longer matches and the hook reports pending until the new result lands. This avoids briefly
+rendering the previous record's data, and keeps every state transition inside the resolve
+handlers — no setState during render, none synchronously inside the effect.
+
 **No bid history and no auction end time.** Neither exists in the dataset, so both would be
 invented rather than read. Out of scope.
