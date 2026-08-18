@@ -3,6 +3,14 @@
 Frontend-only prototype. A buyer browses auction inventory, opens a vehicle,
 and places bids. 200 vehicles, static dataset, no backend.
 
+## Workflow
+
+- One branch per phase, named `phase-N-short-name`, merged into `main` when the
+  phase is done. **No pull requests** — merge locally.
+- Merge with `--no-ff` so each phase stays a visible unit in the history. The repo
+  gets screen-shared during the walkthrough; a readable log is part of the deliverable.
+- Never commit feature work directly to `main`.
+
 ## Commands
 
 - `npm install`
