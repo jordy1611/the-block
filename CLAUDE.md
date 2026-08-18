@@ -35,23 +35,34 @@ src/
 
   assets/               images and icons
 
-  components/
-    common/             reusable, domain-agnostic — Money, EmptyState, SpecList
-    layout/             header, footer, page scaffolding
-    vehicle/            domain components — VehicleCard, BidPanel,
-                        ConditionGrade, TitleBadge
+  components/           shared across pages only
+    common/             domain-agnostic — Money, EmptyState, SpecList
+    layout/             Header, PageContainer, page scaffolding
+    vehicle/            shared domain — ConditionGrade, TitleBadge
 
-  pages/                one file per route — InventoryPage, VehicleDetailPage
+  pages/                one folder per route
+    inventory/
+      InventoryPage.tsx
+      components/       page-scoped — VehicleCard, SearchBar
+    vehicle-detail/
+      VehicleDetailPage.tsx
+      components/       page-scoped — BidPanel, PhotoGallery
 
-  services/             data access and state
+  services/             anything that talks to the outside world
     http.ts             fetch wrapper: latency, error flag, !res.ok handling
-    vehicles.ts         loadVehicles(), the Vehicle type, displayBid()
-    bidStore.ts         observable bid store (Phase 4)
+    vehicles.ts         loadVehicles() — returns Vehicle[]
 
-  utils/                pure functions, no React
+  store/                global client state
+    bidStore.ts         observable store + useBids hook (Phase 4)
+
+  types/                pure type declarations, no runtime code
+    vehicle.ts          the Vehicle interface
+
+  utils/                pure functions, no React, no I/O
     currency.ts         CAD formatting
     date.ts             auction date formatting
     odometer.ts         km formatting
+    bidding.ts          displayBid(), minimumNextBid() — domain rules
 
 public/
   data/vehicles.json    the dataset, served and fetched at runtime
@@ -59,11 +70,17 @@ public/
 
 Where things go:
 
-- A component used by more than one page goes in `components/`, not `pages/`.
+- **Colocate first.** A component used by one page lives in that page's
+  `components/` folder. Promote it to `src/components/` only when a second page
+  needs it. Do not pre-promote.
 - `components/common/` is domain-agnostic — if it mentions a vehicle, it belongs
   in `components/vehicle/`.
-- `utils/` holds pure functions only. Anything touching fetch or React state is a
-  service, not a util.
+- `types/` holds declarations only. If a file in `types/` emits JavaScript, it is
+  in the wrong folder.
+- `utils/` is pure functions. Anything touching fetch, storage, or React state is
+  a service or a store, not a util.
+- Components are `PascalCase.tsx`. Everything else is `camelCase.ts`. Any file
+  containing JSX must be `.tsx`, not `.ts`.
 
 Mantine needs `postcss.config.cjs` at the root. Do not delete it.
 
@@ -93,10 +110,20 @@ Mantine needs `postcss.config.cjs` at the root. Do not delete it.
 
 - **Primitives come from Mantine.** Do not hand-roll buttons, inputs, modals,
   badges, or skeletons. `components/common/` is for composing them, not replacing them.
-- **Domain components are ours**, and live in `components/vehicle/`: `VehicleCard`,
-  `BidPanel`, `ConditionGrade`, `TitleBadge`.
+- **Domain components are ours.** Page-scoped ones colocate under that page;
+  shared ones (`ConditionGrade`, `TitleBadge`) live in `components/vehicle/`.
 - Never format a number inline — money and odometer go through `utils/`.
 - Never hardcode a color — use theme tokens from `src/theme.ts`.
+
+## State
+
+Bid state is the only global state. It lives in `store/bidStore.ts` as a plain
+observable — a `Set` of listeners, `subscribe`, `getSnapshot`, `placeBid` —
+consumed through React's built-in `useSyncExternalStore`.
+
+No Redux, no Zustand. One slice of state does not justify a state library, and a
+hand-rolled store is ~40 lines we can explain line by line. Server data is not
+global state: it is fetched per page through `services/`.
 
 ## Domain rules
 
