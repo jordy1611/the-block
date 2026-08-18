@@ -96,6 +96,13 @@ Mantine needs `postcss.config.cjs` at the root. Do not delete it.
   `displayBid()` (`current_bid ?? starting_bid`). Never render `current_bid` directly.
 - `buy_now_price` and `reserve_price` are frequently null — conditional render only.
 - `damage_notes` can be an empty array — render "No damage reported".
+- **Auction dates are regenerated, not shipped.** `scripts/generate_vehicles.mjs`
+  writes `auction_start` 1-7 days from run time, so the committed file goes stale
+  as the repo ages. Re-run the script when that happens — it writes straight to
+  `public/data/vehicles.json`, and only `id` and `auction_start` change. The brief
+  explicitly allows normalizing these timestamps.
+- `auction_start` carries no timezone (`2026-08-19T09:00:00`), so `new Date()`
+  parses it as **local** time. Keep it that way; do not append `Z`.
 
 ## Async conventions
 
@@ -130,11 +137,11 @@ global state: it is fetched per page through `services/`.
 - Minimum next bid = current bid + $100.
 - `condition_grade` is a 5-point scale — render as "3.8 / 5", never bare.
 - `salvage` and `rebuilt` titles are visually flagged. Buyer trust signal, keep it.
+- **Countdowns use one shared ticker** at the app level, never one interval per
+  card — 200 cards means 200 intervals otherwise. Cards show coarse granularity
+  (`3d 4h`); only the detail view counts seconds. Always handle the elapsed case;
+  never render negative time.
 
 ## Deliberately not built
 
 No auth, seller workflows, checkout, payments, or backend.
-
-No countdowns or live auction state — every `auction_start` in the dataset is in
-the past, so a countdown would read "ENDED" on all 200 lots. Show the date only.
-Do not add one.

@@ -64,7 +64,21 @@ makes it read as meaningful rather than decorative.
 are scan-and-compare data, so the theme sets a monospace family for them and digits align
 down a column.
 
-**No countdowns and no live auction state.** Every `auction_start` in the dataset falls
-between 2026-03-31 and 2026-04-06 — all in the past. A countdown would read "ENDED" on all
-200 lots. The dataset also carries no auction end time and no bid history, so both would be
-inventions rather than reads. Showing the auction date only is the honest presentation.
+**Auction timestamps were regenerated rather than displayed stale.** Reading
+`scripts/generate_vehicles.mjs` shows `auction_start` is produced 1-7 days from whenever the
+script runs — it is not fixed data. The committed file was generated around 2026-03-30, so
+by the time the challenge was opened every auction read five months in the past. The brief
+explicitly permits normalizing these timestamps ("synthetic scheduling data... it's fine to
+normalize them relative to 'now'"), so the provided generator was re-run. Only `id` and
+`auction_start` differ; all 200 vehicles, prices, bids, and conditions are byte-identical.
+The script's output path was updated to `public/data/` in the same change so it cannot
+silently write to the old location.
+
+**Countdowns are in scope because the dates now support them.** With auctions 17 hours to
+7 days out, a countdown carries real information for a buyer deciding what to watch. It is
+built with a single app-level ticker rather than an interval per card, and cards render
+coarse granularity while only the detail view counts seconds — 200 cards updating every
+second would be waste, not polish.
+
+**No bid history and no auction end time.** Neither exists in the dataset, so both would be
+invented rather than read. Out of scope.

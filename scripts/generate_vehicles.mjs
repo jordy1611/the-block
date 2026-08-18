@@ -570,7 +570,7 @@ function summarize(vehicles) {
 
 const vehicles = Array.from({ length: 200 }, (_, index) => generateVehicle(index));
 const scriptDir = dirname(fileURLToPath(import.meta.url));
-const outputPath = resolve(scriptDir, "../data/vehicles.json");
+const outputPath = resolve(scriptDir, "../public/data/vehicles.json");
 
 mkdirSync(dirname(outputPath), { recursive: true });
 writeFileSync(outputPath, `${JSON.stringify(vehicles, null, 2)}\n`);
