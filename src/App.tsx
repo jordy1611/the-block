@@ -1,82 +1,35 @@
-import { Alert, Badge, Box, Container, Group, Loader, Text, Title } from '@mantine/core';
+import { BrowserRouter, Route, Routes } from 'react-router';
 
-import { useAsync } from './hooks/useAsync';
-import { loadVehicles } from './services/vehicles';
-import { displayBid, minimumNextBid } from './utils/bidding';
-import { formatCurrency } from './utils/currency';
-import { formatAuctionStart } from './utils/date';
-import { formatOdometer } from './utils/odometer';
+import { AppLayout } from './components/layout/AppLayout';
+import { InventoryPage } from './pages/inventory/InventoryPage';
+import { NotFoundPage } from './pages/not-found/NotFoundPage';
+import { VehicleDetailModal } from './pages/vehicle-detail/VehicleDetailModal';
 
 /**
- * Phase 1 harness. Proves the data layer end to end — loading, error, and
- * success states, plus every formatter. Phase 2 replaces the body with the
- * real inventory grid.
+ * App shell and routing. One page, a nested modal route, and a catch-all.
+ *
+ * Everything hangs off a single layout route so the header is mounted once for
+ * the life of the app rather than re-rendered per page. `BrowserRouter` over
+ * `createBrowserRouter`: there are no loaders or actions to declare here — data
+ * loading goes through services and `useAsync` — so the data router's extra API
+ * would buy nothing.
  */
 export default function App() {
-  const { data, loading, error } = useAsync(() => loadVehicles());
-
   return (
-    <Box mih="100%">
-      <Box
-        component="header"
-        py="md"
-        style={{ borderBottom: '1px solid var(--mantine-color-default-border)' }}
-      >
-        <Container size="lg">
-          <Group justify="space-between" align="center">
-            <Group gap="xs" align="baseline">
-              <Title order={1} fz="h3">
-                The Block
-              </Title>
-              <Text c="dimmed" fz="sm">
-                Buyer inventory
-              </Text>
-            </Group>
-            <Badge color="signal" variant="light">
-              Prototype
-            </Badge>
-          </Group>
-        </Container>
-      </Box>
-
-      <Container size="lg" py="xl">
-        {loading && (
-          <Group gap="xs">
-            <Loader size="sm" />
-            <Text c="dimmed">Loading inventory…</Text>
-          </Group>
-        )}
-
-        {error && (
-          <Alert color="red" title="Could not load inventory">
-            {error.message}
-          </Alert>
-        )}
-
-        {data && (
-          <Box>
-            <Text fw={600} mb="md">
-              {data.length} lots loaded
-            </Text>
-            {data.slice(0, 3).map((vehicle) => (
-              <Box key={vehicle.id} mb="sm">
-                <Text>
-                  {vehicle.lot} · {vehicle.year} {vehicle.make} {vehicle.model}{' '}
-                  {vehicle.trim}
-                </Text>
-                <Text c="dimmed" fz="sm">
-                  {formatOdometer(vehicle.odometer_km)} ·{' '}
-                  {vehicle.condition_grade} / 5 · {formatAuctionStart(vehicle.auction_start)}
-                </Text>
-                <Text fz="sm">
-                  bid {formatCurrency(displayBid(vehicle))} · next{' '}
-                  {formatCurrency(minimumNextBid(vehicle))}
-                </Text>
-              </Box>
-            ))}
-          </Box>
-        )}
-      </Container>
-    </Box>
+    <BrowserRouter>
+      <Routes>
+        <Route element={<AppLayout />}>
+          {/* The detail view is a nested route, so it renders *inside* the
+              inventory page as a modal rather than replacing it. The grid stays
+              mounted underneath, keeping its scroll position and rendered
+              batches, and a vehicle URL stays shareable. */}
+          <Route path="/" element={<InventoryPage />}>
+            <Route path="vehicle/:id" element={<VehicleDetailModal />} />
+          </Route>
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   );
 }
+

@@ -1,5 +1,6 @@
 import { http } from './http';
 import type { Vehicle } from '../types/vehicle';
+import { filterVehicles } from '../utils/search';
 
 /**
  * Inventory access. There is no backend, so the "endpoint" is a static asset —
@@ -49,6 +50,28 @@ export async function loadVehicleById(
 ): Promise<Vehicle | undefined> {
   const vehicles = await loadVehicles();
   return vehicles.find((vehicle) => vehicle.id === id);
+}
+
+export interface VehicleSearchResult {
+  vehicles: Vehicle[];
+  /** Size of the unfiltered inventory, so the UI can say "42 of 200". */
+  total: number;
+}
+
+/**
+ * Search as an async operation, even though the filtering itself is synchronous
+ * once the dataset is in memory.
+ *
+ * Keeping it behind a Promise is what makes the search pipeline honest: the
+ * first keystrokes can land while the inventory request is still in flight, so
+ * there really are concurrent, cancellable searches for `switchMap` to manage.
+ * It also means moving search to a real endpoint later touches this function
+ * and nothing else.
+ */
+export async function searchVehicles(query: string): Promise<VehicleSearchResult> {
+  const vehicles = await loadVehicles();
+
+  return { vehicles: filterVehicles(vehicles, query), total: vehicles.length };
 }
 
 /** Drops the cache. Used by the error state's retry action. */

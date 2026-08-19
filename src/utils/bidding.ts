@@ -1,4 +1,5 @@
 import type { Vehicle } from '../types/vehicle';
+import { hasStarted } from './date';
 
 /**
  * Bidding rules. Pure functions — no React, no I/O, no store access.
@@ -33,7 +34,25 @@ export function minimumNextBid(vehicle: Biddable): number {
   return displayBid(vehicle) + BID_INCREMENT;
 }
 
+/**
+ * Whether the lot is open for bidding, as opposed to scheduled.
+ *
+ * Evaluated once per render, not on a ticker. A lot crossing its start time
+ * while the page sits open is not worth a subscription in a prototype — the
+ * next navigation or search picks it up.
+ *
+ * Distinct from `hasBids`: a lot can be open with nobody having bid yet, and
+ * every lot in the shipped dataset is scheduled rather than live.
+ */
+export function isBiddingActive(
+  vehicle: Pick<Vehicle, 'auction_start'>,
+  now: Date = new Date(),
+): boolean {
+  return hasStarted(vehicle.auction_start, now);
+}
+
 /** Whether a proposed amount clears the floor. */
 export function isValidBid(vehicle: Biddable, amount: number): boolean {
   return Number.isFinite(amount) && amount >= minimumNextBid(vehicle);
 }
+

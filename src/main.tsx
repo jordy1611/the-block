@@ -7,12 +7,16 @@ import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import './index.css';
 
-import { theme } from './theme';
+import { cssVariablesResolver, theme } from './theme';
 import App from './App';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <MantineProvider theme={theme} defaultColorScheme="auto">
+    <MantineProvider
+      theme={theme}
+      cssVariablesResolver={cssVariablesResolver}
+      defaultColorScheme="auto"
+    >
       <Notifications position="top-right" />
       <App />
     </MantineProvider>

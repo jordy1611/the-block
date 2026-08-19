@@ -1,0 +1,84 @@
+/*
+ * Card affordance only. Every value is a token emitted by the theme's
+ * cssVariablesResolver — a stylesheet cannot import TypeScript, so this is how
+ * `src/styles/` reaches CSS.
+ */
+.card {
+  color: inherit;
+  text-decoration: none;
+  transition:
+    transform var(--app-duration-fast) var(--app-easing),
+    box-shadow var(--app-duration-fast) var(--app-easing),
+    border-color var(--app-duration-fast) var(--app-easing);
+}
+
+.card:hover {
+  transform: translateY(var(--app-hover-lift));
+  box-shadow: var(--app-shadow-card);
+  border-color: var(--app-brand);
+}
+
+/* The link lives inside the card now, so the ring belongs to the card when
+   anything within it takes focus. */
+.card:focus-within {
+  outline: var(--app-border-width-focus) solid var(--app-brand);
+  outline-offset: var(--app-border-width-focus);
+}
+
+.stretchedLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+/*
+ * Covers the whole card so a click anywhere navigates, without wrapping the
+ * card's contents in an anchor — nesting the photo arrows inside a link would
+ * be invalid HTML and would confuse keyboard and screen-reader users.
+ */
+.stretchedLink::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: var(--app-z-card-link);
+}
+
+/*
+ * A lot that is open for bidding. Same brand colour the card borrows on hover,
+ * so "live" and "interactive" speak one language instead of two — thickened to
+ * 3px and breathing between that colour and the card's ordinary border.
+ *
+ * A hard on/off blink at this size is a distraction across a grid of 24; a slow
+ * fade reads as a state.
+ */
+.live {
+  border-width: var(--app-border-width-live);
+  border-color: var(--app-brand);
+  animation: livePulse var(--app-duration-pulse) var(--app-easing) infinite;
+}
+
+@keyframes livePulse {
+  0%,
+  100% {
+    border-color: var(--app-brand);
+  }
+  50% {
+    border-color: var(--app-border);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .card:hover {
+    transform: none;
+    transition: none;
+  }
+
+  /* Still unmistakably live, just not moving. */
+  .live {
+    animation: none;
+  }
+}
+
+
+
+
