@@ -1,3 +1,4 @@
+import type { BidService, BidServiceId } from '../types/bid';
 import type { Vehicle } from '../types/vehicle';
 import { hasStarted } from './date';
 
@@ -76,3 +77,140 @@ export function isValidBid(vehicle: Biddable, amount: number): boolean {
 }
 
 
+/** Whether an amount lands on the increment rather than between two steps. */
+export function isOnIncrement(amount: number): boolean {
+  return Number.isInteger(amount) && amount % BID_INCREMENT === 0;
+}
+
+/**
+ * Whether a proxy ceiling makes sense alongside the amount being bid.
+ *
+ * A max below the bid itself is the one combination that is not merely odd but
+ * contradictory — it asks the auction to bid on your behalf up to less than you
+ * just bid. Equal is fine: it means "this bid and no more", which is what
+ * leaving the field blank also means, and there is no reason to reject someone
+ * for saying it explicitly.
+ */
+export function isValidMaxBid(amount: number, maxAmount: number): boolean {
+  return Number.isFinite(maxAmount) && maxAmount >= amount;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Buyer services                                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The fee schedule.
+ *
+ * These are derived from the lot rather than fetched, and that is a deliberate
+ * limit rather than a shortcut: the dataset has no fee fields, so any number
+ * here is invented either way. Inventing it as a pure function of data we do
+ * have — the bid, the province — means two buyers looking at the same lot are
+ * quoted the same thing, and the whole schedule is one file to point at when
+ * someone asks where $145 came from. A real integration replaces these three
+ * functions with a quote endpoint and nothing above them changes.
+ *
+ * `bidServices()` is the only export of the four: the catalogue is the
+ * interface, the individual fees are how it is arrived at. Nothing outside this
+ * file has needed a single fee on its own.
+ */
+
+/**
+ * The as-described guarantee is banded by sale price, not a percentage. The
+ * work behind it — re-inspecting a car and arbitrating the claim — costs about
+ * the same on a $9,000 hatchback as a $40,000 truck, so a flat percentage would
+ * overcharge the top of the inventory to subsidise the bottom.
+ */
+const GUARANTEE_BANDS: readonly { readonly upTo: number; readonly fee: number }[] = [
+  { upTo: 10_000, fee: 95 },
+  { upTo: 25_000, fee: 145 },
+  { upTo: 50_000, fee: 225 },
+  { upTo: Infinity, fee: 345 },
+];
+
+function guaranteeFee(vehicle: Biddable): number {
+  const bid = displayBid(vehicle);
+  return GUARANTEE_BANDS.find((band) => bid < band.upTo)!.fee;
+}
+
+/** The extension is priced off the base, so the two never drift apart. */
+function extendedGuaranteeFee(vehicle: Biddable): number {
+  return Math.round(guaranteeFee(vehicle) / 2 / 5) * 5;
+}
+
+/**
+ * Transport, quoted by where the lot sits.
+ *
+ * Keyed on province rather than city: the dataset has 30-odd cities and no
+ * coordinates, so a per-city rate would be 30 invented numbers pretending to be
+ * a distance calculation. Seven zone rates are honest about being zones.
+ */
+const TRANSPORT_RATES: Readonly<Record<string, number>> = {
+  Ontario: 690,
+  Quebec: 790,
+  Manitoba: 940,
+  Saskatchewan: 1090,
+  Alberta: 1240,
+  'Nova Scotia': 1390,
+  'British Columbia': 1450,
+};
+
+/** Used for a province the dataset does not cover today. */
+const TRANSPORT_FALLBACK = 990;
+
+function transportQuote(vehicle: Pick<Vehicle, 'province'>): number {
+  return TRANSPORT_RATES[vehicle.province] ?? TRANSPORT_FALLBACK;
+}
+
+/** Every service on offer for one lot, priced. Order is the order shown. */
+export function bidServices(
+  vehicle: Biddable & Pick<Vehicle, 'province' | 'city'>,
+): BidService[] {
+  return [
+    {
+      id: 'as-described',
+      label: 'As Described Guarantee',
+      description:
+        'Covers the condition report. If the vehicle arrives materially different from how it was described, the sale is arbitrated.',
+      price: guaranteeFee(vehicle),
+    },
+    {
+      id: 'extended-guarantee',
+      label: 'Extended Guarantee',
+      description:
+        'Extends the arbitration window from 3 business days to 21, for undisclosed mechanical faults found after delivery.',
+      price: extendedGuaranteeFee(vehicle),
+      requires: 'as-described',
+    },
+    {
+      id: 'transport',
+      label: 'Transportation',
+      description: `Door-to-door carrier from ${vehicle.city}, ${vehicle.province}. Quoted per zone; booked only if you win.`,
+      price: transportQuote(vehicle),
+    },
+  ];
+}
+
+/** What the ticked services add to the bill. Unknown ids are ignored. */
+export function servicesTotal(
+  services: readonly BidService[],
+  selected: readonly BidServiceId[],
+): number {
+  return services
+    .filter((service) => selected.includes(service.id))
+    .reduce((total, service) => total + service.price, 0);
+}
+
+/**
+ * What the buyer owes if this bid wins: the bid plus whatever they attached.
+ *
+ * Not a landed cost — auction and registration fees are outside this prototype.
+ * Labelled in the UI as what it is so nobody reads it as the final invoice.
+ */
+export function bidTotal(
+  amount: number,
+  services: readonly BidService[],
+  selected: readonly BidServiceId[],
+): number {
+  return amount + servicesTotal(services, selected);
+}

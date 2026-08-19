@@ -8,6 +8,7 @@ import { useAsync } from '../../hooks/useAsync';
 import { loadVehicleById } from '../../services/vehicles';
 import { breakpoint, layout } from '../../styles/layouts';
 import { BidModal } from './components/BidModal';
+import { BuyoutModal } from './components/BuyoutModal';
 import { VehicleDetailBody } from './components/VehicleDetailBody';
 
 /**
@@ -35,6 +36,9 @@ export function VehicleDetailModal() {
   // screen, and this one is dense.
   const compact = useMediaQuery(`(max-width: ${breakpoint.sm})`);
   const [bidding, setBidding] = useState(false);
+  const [buyingNow, setBuyingNow] = useState(false);
+  // Either dialog stacked on top suspends this one's dismiss handlers.
+  const stacked = bidding || buyingNow;
 
   const close = () => navigate('/');
 
@@ -61,13 +65,13 @@ export function VehicleDetailModal() {
         fullScreen={compact}
         centered
         /*
-         * While the bid modal is stacked on top, this one stops listening for
-         * Escape and outside clicks. Without it a single Escape closes both and
-         * navigates back to the grid — dismissing a bid dialog should not throw
-         * away the vehicle the buyer was reading.
+         * While a dialog is stacked on top, this one stops listening for Escape
+         * and outside clicks. Without it a single Escape closes both and
+         * navigates back to the grid — dismissing a bid or buyout dialog should
+         * not throw away the vehicle the buyer was reading.
          */
-        closeOnEscape={!bidding}
-        closeOnClickOutside={!bidding}
+        closeOnEscape={!stacked}
+        closeOnClickOutside={!stacked}
       >
         {loading && <Loader size="sm" />}
 
@@ -93,6 +97,7 @@ export function VehicleDetailModal() {
           <VehicleDetailBody
             vehicle={vehicle}
             onPlaceBid={() => setBidding(true)}
+            onBuyNow={() => setBuyingNow(true)}
           />
         )}
       </Modal>
@@ -104,6 +109,8 @@ export function VehicleDetailModal() {
           onClose={() => setBidding(false)}
         />
       )}
+
+      <BuyoutModal opened={buyingNow} onClose={() => setBuyingNow(false)} />
     </>
   );
 }

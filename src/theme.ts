@@ -65,6 +65,10 @@ export const theme = createTheme({
     },
   },
 
+  // Checkboxes, radios, and switches read as clickable. Mantine ships these
+  // with the default arrow, which makes a tick box look like static text.
+  cursorType: 'pointer',
+
   spacing: space,
   radius: {
     xs: radius.xs,
@@ -140,6 +144,9 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
     '--app-easing': easing.standard,
     '--app-hover-lift': motion.hoverLift,
     '--app-border-width': borderWidth.hairline,
+    '--app-nested-indent': layout.nestedIndent,
+    '--app-currency-prefix-width': layout.currencyPrefixWidth,
+    '--app-currency-prefix-gap': layout.currencyPrefixGap,
     '--app-border-width-focus': borderWidth.focus,
     '--app-border-width-live': borderWidth.live,
     '--app-duration-pulse': duration.pulse,

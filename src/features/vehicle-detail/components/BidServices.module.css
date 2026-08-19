@@ -1,0 +1,80 @@
+/* Values are `--app-*` variables emitted by the theme's cssVariablesResolver. */
+
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--mantine-spacing-xs);
+}
+
+/*
+ * The leader is what ties a label on the left to a price on the right across a
+ * gap wide enough to lose your place in. It grows to fill whatever is left, so
+ * the prices form a hard right column whatever the label lengths are.
+ *
+ * Baseline-aligned rather than centred: dotted rules read as underlines to the
+ * text either side of them, and an underline that floats mid-cap looks broken.
+ */
+.leader {
+  flex: 1 1 auto;
+  min-width: var(--mantine-spacing-xs);
+  border-bottom: var(--app-border-width) dotted var(--app-border);
+  /* Lift it off the baseline so descenders in the label clear the dots. */
+  transform: translateY(-0.25em);
+}
+
+/* The add-on sits under its parent, marked by the arrow rather than by indent
+   alone — indentation on its own is invisible to a screen reader. */
+.nested {
+  padding-left: var(--app-nested-indent);
+}
+
+.arrow {
+  color: var(--mantine-color-dimmed);
+}
+
+/*
+ * Only the dimming. The cursor on both the box and its label comes from
+ * `cursorType` in the theme, which Mantine resolves to pointer or not-allowed
+ * per state — restating it here would be two declarations that can only ever
+ * agree or be wrong.
+ */
+.label[data-disabled] {
+  opacity: 0.55;
+}
+
+/*
+ * The trigger is the focusable element, not the icon inside it — so the hover
+ * and focus states have to hang off the trigger. Putting `:focus-visible` on
+ * the icon looks right and never matches, which is how this shipped with a
+ * keyboard-reachable control that showed nothing when you reached it.
+ *
+ * Same shape as `CopyText`: outline on the wrapper, opacity on the mark.
+ */
+.infoTrigger {
+  display: inline-flex;
+  flex-shrink: 0;
+  border-radius: var(--mantine-radius-sm);
+}
+
+.infoTrigger:focus-visible {
+  outline: var(--app-border-width-focus) solid var(--app-brand);
+  outline-offset: var(--app-border-width);
+}
+
+.info {
+  display: block;
+  color: var(--mantine-color-dimmed);
+  opacity: 0.7;
+  transition: opacity var(--app-duration-fast) var(--app-easing);
+}
+
+.infoTrigger:hover .info,
+.infoTrigger:focus-visible .info {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .info {
+    transition: none;
+  }
+}

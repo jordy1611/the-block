@@ -1,0 +1,32 @@
+/* Values are `--app-*` variables emitted by the theme's cssVariablesResolver. */
+
+/*
+ * The "$" well. A leading symbol inside the field would sit in the same colour
+ * and weight as the digits the buyer is typing, and on a money input those two
+ * things should not look alike — the symbol is fixed, the number is theirs.
+ * Giving it its own tinted cell says so without a word of label copy.
+ */
+.currencySection[data-position='left'] {
+  background-color: var(--app-surface);
+  border-inline-end: var(--app-border-width) solid var(--app-border);
+  border-start-start-radius: var(--input-radius);
+  border-end-start-radius: var(--input-radius);
+  color: var(--mantine-color-dimmed);
+}
+
+/*
+ * Mantine pads the field by exactly the left section's width, which leaves the
+ * first digit typed sitting flush against the "$" well with nothing between
+ * them. Push it clear by the same amount the field would have had on its own.
+ */
+.currencyInput {
+  padding-inline-start: calc(
+    var(--app-currency-prefix-width) + var(--app-currency-prefix-gap)
+  );
+}
+
+/* The total, set apart from the fields above it by a rule rather than a box —
+   it is a readout of what was entered, not another thing to fill in. */
+.total {
+  border-top: var(--app-border-width) solid var(--app-border);
+}

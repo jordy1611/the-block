@@ -84,6 +84,17 @@ export const layout = {
   /** The load-more sentinel. Has to occupy layout to be observable at all. */
   sentinelHeight: '1px',
 
+  /** 12px between fields in a form — tighter than a section, looser than a line. */
+  fieldGap: space.sm,
+  /** 36px — Mantine's default input height, for skeletons standing in for one. */
+  inputHeight: '2.25rem',
+  /** 36px — the "$" well fixed to the left of a money input. */
+  currencyPrefixWidth: '2.25rem',
+  /** 10px — clearance between that well and the first digit typed after it. */
+  currencyPrefixGap: space.xs,
+  /** 20px — how far an add-on sits under the service it depends on. */
+  nestedIndent: space.lg,
+
   /** 1088px — wide enough for gallery and facts side by side, no wider. */
   modalWidth: '68rem',
   /** 88px — gallery thumbnails: big enough to tell two angles apart. */

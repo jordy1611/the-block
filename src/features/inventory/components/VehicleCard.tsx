@@ -63,9 +63,12 @@ function bidCountLabel(vehicle: Vehicle): string {
  * The whole card is the link. A "View details" button inside a card is a second
  * target for the same destination, and on a phone it is the smaller of the two.
  *
- * The bid label switches between "Current bid" and "Starting bid" rather than
- * always saying "current": over half the inventory has no bids, and calling a
- * starting price a current bid tells the buyer something untrue about demand.
+ * The bid label switches between "Current bid" and "Starting bid" on whether
+ * the lane is open, not on whether anyone has bid. Once a lot is live the
+ * starting bid *is* the current bid — it is the number a buyer has to beat.
+ * Before it opens there is no current bid to speak of. How contested a lot
+ * actually is rides on the bid count beside it, which is the honest place for
+ * it: "Current bid / No bids yet" says both things without either lying.
  */
 export function VehicleCard({ vehicle }: VehicleCardProps) {
   const biddingActive = isBiddingActive(vehicle);
@@ -189,9 +192,7 @@ export function VehicleCard({ vehicle }: VehicleCardProps) {
             {/* Only a live lot has a *current* bid. Before it opens, the figure
                 is what bidding will start at, whatever the dataset carries. */}
             <Amount
-              label={
-                biddingActive && hasBids(vehicle) ? 'Current bid' : 'Starting bid'
-              }
+              label={biddingActive ? 'Current bid' : 'Starting bid'}
               value={displayBid(vehicle)}
             />
             {/* Present on 39 of 200 lots — conditional, never "$null". */}

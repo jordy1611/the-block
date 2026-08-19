@@ -13,6 +13,7 @@ import { VehicleFacts } from './VehicleFacts';
 interface VehicleDetailBodyProps {
   vehicle: Vehicle;
   onPlaceBid: () => void;
+  onBuyNow: () => void;
 }
 
 /**
@@ -25,7 +26,11 @@ interface VehicleDetailBodyProps {
  * the long-form sections keeps the modal one screen tall for the majority who
  * only wanted the first two answers.
  */
-export function VehicleDetailBody({ vehicle, onPlaceBid }: VehicleDetailBodyProps) {
+export function VehicleDetailBody({
+  vehicle,
+  onPlaceBid,
+  onBuyNow,
+}: VehicleDetailBodyProps) {
   const damageCount = vehicle.damage_notes.length;
 
   return (
@@ -113,7 +118,7 @@ export function VehicleDetailBody({ vehicle, onPlaceBid }: VehicleDetailBodyProp
       </Grid.Col>
 
       <Grid.Col span={{ base: 12, md: 5 }}>
-        <BidBar vehicle={vehicle} onPlaceBid={onPlaceBid} />
+        <BidBar vehicle={vehicle} onPlaceBid={onPlaceBid} onBuyNow={onBuyNow} />
       </Grid.Col>
     </Grid>
   );

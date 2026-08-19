@@ -59,28 +59,35 @@ src/
     vehicle-detail/
       VehicleDetailModal.tsx   nested route — renders over the inventory grid
       components/       feature-scoped — VehicleDetailBody, PhotoGallery,
-                        VehicleFacts, BidBar, BidModal
+                        VehicleFacts, BidBar, BidModal, BidServices,
+                        PaymentMethodField, BuyoutModal
     not-found/
       NotFoundPage.tsx
 
   services/             anything that talks to the outside world
     http.ts             CRUD over fetch: latency, error flag, !res.ok, aborts
     vehicles.ts         loadVehicles(), loadVehicleById(), searchVehicles()
+    bidding.ts          placeBid(), loadPaymentMethods()
 
   store/                global client state — empty until the bid store lands
 
   types/                pure type declarations, no runtime code
     vehicle.ts          the Vehicle interface
+    bid.ts              BidRequest, BidReceipt, BidService, PaymentMethod,
+                        BidUpdate (declared for the update feed, unused)
 
   utils/                pure functions, no React, no I/O
     currency.ts         CAD formatting
     date.ts             auction date formatting
     odometer.ts         km formatting
-    bidding.ts          displayBid(), minimumNextBid() — domain rules
+    bidding.ts          displayBid(), minimumNextBid(), the fee schedule —
+                        domain rules
     search.ts           inventory text matching
 
 public/
   data/vehicles.json    the dataset, served and fetched at runtime
+
+vite.config.ts          also holds the mock API — see Data below
 ```
 
 Where things go:
@@ -153,6 +160,20 @@ Mantine needs `postcss.config.cjs` at the root. Do not delete it.
   explicitly allows normalizing these timestamps.
 - `auction_start` carries no timezone (`2026-08-19T09:00:00`), so `new Date()`
   parses it as **local** time. Keep it that way; do not append `Z`.
+- **Bids do not come from the dataset. They go to a mock API in `vite.config.ts`.**
+  `GET /api/payment-methods` and `POST /api/bids`, served as dev-server middleware
+  (and preview-server middleware, so `npm run preview` works too). It exists
+  because inventory is a static asset a GET happens to work against, while a POST
+  to a static path is a 404 — and the alternative, a service that fakes its own
+  response, would leave the app's one write path as the only one never exercising
+  `http.ts`. The middleware is stateless and deliberately dumb: it checks the
+  shape of the body and returns a receipt. Every domain rule stays client-side in
+  `utils/bidding.ts` where it can be read and tested.
+- **`http.ts` discards the mock API's error bodies.** It throws
+  `HttpError(status, url, "POST /api/bids failed with 400")`, so a specific server
+  message like "Unknown payment method" never reaches the buyer. Fixing it means
+  parsing the JSON body in `http.ts`'s `!response.ok` branch, which changes error
+  copy everywhere — worth doing, not worth doing quietly.
 
 ## Async conventions
 
@@ -171,10 +192,25 @@ Mantine needs `postcss.config.cjs` at the root. Do not delete it.
   and progressive card rendering (24 at a time). One observer per rootMargin
   watches every target — `features/inventory/intersection.ts` — never one per card.
 
+**Bidding is two channels, not one.** `placeBid` is a POST and stays one once the
+feed lands. They are different things: the POST is this buyer asking the auction
+to take an amount, and it needs a request/response pair — an acknowledgement, a
+receipt id, an error the form can render beside the field that caused it. A push
+channel has nowhere to put any of that; submitting over it would turn every
+validation failure into a message that arrives, if it arrives, with no way to tie
+it to the submit that caused it. So `BidReceipt.status` is `accepted` and never
+"winning": whether a bid still stands is a broadcast every watcher of the lot
+sees, and reading it out of one buyer's POST response would give them a different
+answer to everyone else's. The rest of Phase 4 adds `GET /api/bids/stream` (SSE) to the mock
+API and `subscribeToBidUpdates` to `services/bidding.ts` — a callback and an
+unsubscribe, because that is what a `BehaviorSubject` in `store/bidStore.ts`
+wants to be fed by. The store owns the RxJS, the service owns the `EventSource`,
+and neither needs to know about the other's.
+
 **RxJS is scoped to the two places it beats hand-rolled code.** Inventory search
 uses `debounceTime` + `distinctUntilChanged` + `switchMap` in
 `features/inventory/useVehicleSearch.ts`; the bid store will use a
-`BehaviorSubject` (Phase 4). Do not reach for it anywhere else — a single cached
+`BehaviorSubject`. Do not reach for it anywhere else — a single cached
 GET gains nothing from it. `searchVehicles()` returns a Promise like every other
 service; the pipeline wraps it, the service does not know RxJS exists.
 
@@ -243,6 +279,10 @@ Rules:
   `var(--mantine-*)` rather than literals.
 - Page width comes from the theme's `Container` default, which comes from
   `layout.containerMaxWidth`. Pages do not set it.
+- **`cursorType: 'pointer'` is set app-wide in `theme.ts`.** Mantine ships
+  checkboxes, radios, and switches with the default arrow, which makes a tick box
+  read as static text. Disabled ones still get `not-allowed`, which Mantine
+  handles on its own.
 
 ## State
 
@@ -257,6 +297,28 @@ global state: it is fetched per feature through `services/`.
 ## Domain rules
 
 - Minimum next bid = current bid + $100.
+- **A bid must also land on the increment.** Every bid in the dataset is already a
+  multiple of $100, so a $14,650 bid is not a rounding artefact — it is someone
+  typing over the field. `isValidBid` checks the floor and `isOnIncrement` checks
+  the step; the form reports them separately because "too low" and "not a round
+  step" are different mistakes with different fixes.
+- **The max bid is optional and may equal the bid.** Only a maximum *below* the
+  bid is rejected — it asks the auction to proxy up to less than what was just
+  offered. Leaving it blank and setting it equal to the bid mean the same thing.
+- **The fee schedule is derived, not fetched** (`utils/bidding.ts`). The dataset
+  has no fee fields, so every number is invented either way; inventing it as a
+  pure function of the bid and the province means two buyers looking at the same
+  lot are quoted the same thing, and there is one file to point at when someone
+  asks where $145 came from. The guarantee is banded by price rather than a
+  percentage — arbitrating a claim costs about the same on a $9,000 hatchback as
+  a $40,000 truck. Transport is quoted per province: 30-odd cities with no
+  coordinates would be 30 invented numbers pretending to be a distance
+  calculation. A real quote endpoint replaces three functions and nothing above
+  them changes.
+- **A service with `requires` cannot be selected without its parent**, and
+  unticking the parent takes it with it. Enforced in `BidServices`, not in the
+  form, so no caller can produce a selection the schedule prices and the auction
+  would refuse.
 - `condition_grade` is a 5-point scale — render as "3.8 / 5" wherever there is room.
   The one exception is the chip over the card photo, which drops the denominator
   (`showScale={false}`) because the colour band carries the comparison there and
@@ -277,6 +339,29 @@ global state: it is fetched per feature through `services/`.
   intervals, an elapsed case, and a negative-time guard — real work that tells a
   buyer nothing the timestamp does not. If it comes back, one shared ticker, never
   one interval per card. Same rule as the observers.
+- **Label case in the bid form: bold labels are Title Case, dimmed ones are not.**
+  Field labels and section headings ("Bid Amount", "Payment Method", "Total if
+  You Win") take Title Case; the small uppercase `FieldLabel` and every dimmed
+  helper line keep sentence case. Two registers, one rule each.
+- **"Current bid" vs "Starting bid" turns on `isBiddingActive`, never on
+  `hasBids`.** Once a lane is open the starting bid *is* the current bid — it is
+  the number a buyer has to beat right now — so a live lot with no bids still
+  reads "Current bid". Before it opens there is no current bid to speak of, and
+  the label says "Starting bid". The value is always `displayBid()`.
+
+  One rule, three surfaces: `VehicleCard`, `BidBar`, and the bid form's headline
+  (which is unconditionally "Current Bid", being reachable only on a live lot).
+  How contested a lot is rides on the bid count instead — "Current bid" over
+  "No bids yet" says both things without either one lying. That is what `hasBids`
+  is still for.
+- **Buyout is gated exactly like bidding.** The `Buy now` button renders only
+  where `buy_now_price` is non-null (39 of 200) and is disabled whenever
+  `isBiddingActive` is false, sharing the "Opens …" caption with `Place bid`.
+  Real auctions often open buy-now *before* the lane does, but no rule in the
+  brief or the dataset says so, and inventing a second timing rule to sit beside
+  `isBiddingActive` is not something to do quietly. Bidding keeps the filled
+  button and buyout takes the default variant: it is the way out of the auction,
+  not the way through it.
 - **The grid renders 24 cards at a time.** All 200 at once is a 235ms long task.
   The count in the page description is the match count, not the rendered count.
 
@@ -289,5 +374,16 @@ Visible in the UI but deliberately inert, so nobody mistakes them for bugs:
 - **The heart on a vehicle card.** A watchlist needs somewhere to persist and a
   place to read it back; neither is in scope. It is a visual affordance only.
 - **Live countdowns.** See the domain rules above.
-- **The bid form.** `BidModal` opens and shows the real minimum next bid; the
-  input, validation, and confirmation are Phase 4.
+- **"Add new payment method"** in the bid form. Adding one means collecting a
+  card number, and there is no backend to send it to and no reason to hold it.
+  The line is present so the section matches the real product; it is plainly not
+  a control, and its tooltip says why.
+- **The bid you just placed changing the page behind it.** `placeBid` returns an
+  acknowledgement, not a bid state. Where the lot stands afterwards arrives on the
+  update channel, which is the rest of Phase 4 — see **Async conventions** above.
+- **The Buyout button inside `BuyoutModal`.** The dialog is a shell: Cancel
+  closes, Buyout does nothing. Taking a lot at its buy-now price ends the auction
+  for everyone watching it, so it needs what a bid needs — a POST, a receipt, and
+  the update channel to tell the other bidders the lot is gone. Wiring it to
+  merely close the dialog would be worse than leaving it inert, because a dialog
+  that dismisses itself reads as a purchase that went through.

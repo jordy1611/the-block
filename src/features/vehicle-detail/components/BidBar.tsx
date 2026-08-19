@@ -5,12 +5,7 @@ import { Money } from '../../../components/common/Money';
 import { fontWeight } from '../../../styles/fonts';
 import { layout, space } from '../../../styles/layouts';
 import type { Vehicle } from '../../../types/vehicle';
-import {
-  displayBid,
-  hasBids,
-  isBiddingActive,
-  reserveStatus,
-} from '../../../utils/bidding';
+import { displayBid, isBiddingActive, reserveStatus } from '../../../utils/bidding';
 import { formatAuctionWeekdayTime } from '../../../utils/date';
 
 const RESERVE_LABEL = {
@@ -28,6 +23,7 @@ const RESERVE_COLOR = {
 interface BidBarProps {
   vehicle: Vehicle;
   onPlaceBid: () => void;
+  onBuyNow: () => void;
 }
 
 /**
@@ -43,7 +39,7 @@ interface BidBarProps {
  *
  * The reserve is shown as a status and never as a figure — see `reserveStatus`.
  */
-export function BidBar({ vehicle, onPlaceBid }: BidBarProps) {
+export function BidBar({ vehicle, onPlaceBid, onBuyNow }: BidBarProps) {
   const live = isBiddingActive(vehicle);
   const reserve = reserveStatus(vehicle);
 
@@ -56,7 +52,7 @@ export function BidBar({ vehicle, onPlaceBid }: BidBarProps) {
         <Group justify="space-between" align="flex-start" wrap="wrap" gap={space.lg}>
           <Stack gap={layout.tightGap} ta="center">
             <FieldLabel>
-              {live && hasBids(vehicle) ? 'Current bid' : 'Starting bid'}
+              {live ? 'Current bid' : 'Starting bid'}
             </FieldLabel>
             <Money value={displayBid(vehicle)} fz="h2" fw={fontWeight.bold} />
           </Stack>
@@ -81,9 +77,29 @@ export function BidBar({ vehicle, onPlaceBid }: BidBarProps) {
         </Group>
 
         <Stack gap={layout.tightGap}>
-          <Button size="md" fullWidth onClick={onPlaceBid} disabled={!live}>
-            Place bid
-          </Button>
+          {/* Bidding is the primary action and keeps the filled button. Buyout
+              is the escape hatch from the auction, not the way through it, so
+              it sits second and quieter — and only on the 39 of 200 lots that
+              have a buy-now price at all. */}
+          <Stack gap={layout.stackGap}>
+            <Button size="md" fullWidth onClick={onPlaceBid} disabled={!live}>
+              Place bid
+            </Button>
+
+            {vehicle.buy_now_price !== null && (
+              <Button
+                size="md"
+                fullWidth
+                variant="default"
+                onClick={onBuyNow}
+                disabled={!live}
+              >
+                Buy now
+              </Button>
+            )}
+          </Stack>
+
+          {/* One caption for both buttons — they are gated on the same thing. */}
           {!live && (
             <Text fz="xs" c="dimmed" ta="center">
               Opens {formatAuctionWeekdayTime(vehicle.auction_start)}
