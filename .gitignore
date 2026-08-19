@@ -6,6 +6,7 @@ node_modules/
 *.bak
 dist
 dist-ssr
+coverage
 *.local
 .vscode/*
 !.vscode/extensions.json

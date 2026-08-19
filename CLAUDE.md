@@ -19,6 +19,8 @@ and places bids. 200 vehicles, static dataset, no backend.
 - `npm run build`
 - `npm run typecheck` — `tsc -b`
 - `npm run lint` — oxlint (not eslint; that is what the Vite template ships now)
+- `npm test` — Vitest once, with a coverage table
+- `npm run test:watch` — Vitest in watch mode, no coverage
 
 ## Stack
 
@@ -87,7 +89,13 @@ src/
 public/
   data/vehicles.json    the dataset, served and fetched at runtime
 
+tests/                  the test tree — mirrors src/, see Testing below
+  support/              setup, render helper, vehicle fixture factory
+  components/           happy-path component tests
+
 vite.config.ts          also holds the mock API — see Data below
+vitest.config.ts        test config, separate on purpose — see Testing below
+tsconfig.test.json      third project reference, so tests typecheck too
 ```
 
 Where things go:
@@ -364,6 +372,60 @@ global state: it is fetched per feature through `services/`.
   not the way through it.
 - **The grid renders 24 cards at a time.** All 200 at once is a 235ms long task.
   The count in the page description is the match count, not the rendered count.
+
+## Testing
+
+Vitest + Testing Library, jsdom environment. Config is `vitest.config.ts` at the
+root — **not** `vite.config.ts`, which carries the mock API plugin; a unit test
+should never start a server. CSS is left unprocessed, so a `*.module.css` import
+resolves to a proxy and a PostCSS pass per file is skipped.
+
+```
+tests/
+  support/
+    setup.ts      matchMedia + ResizeObserver polyfills, jest-dom matchers
+    render.tsx    renderWithProviders — MantineProvider + MemoryRouter
+    vehicle.ts    makeVehicle() factory, LIVE_/SCHEDULED_AUCTION_START
+  components/     mirrors src — common/, inventory/, vehicle-detail/
+```
+
+- **Tests live outside `src/`**, in `tests/`, mirroring the source tree. The
+  colocation rule in **Structure** governs the app; tests are their own tree so
+  the shipped folders stay exactly what ships.
+- **`tests/` is typechecked.** `tsconfig.test.json` is a third project reference
+  off the root tsconfig, so `npm run typecheck` covers tests as well as `src`
+  and `vite.config.ts`. A test that does not compile fails the same command a
+  component that does not compile fails.
+- **Scope is deliberate and narrow: happy-path component rendering.** No page
+  tests, no service tests, no UI regression suite — the app was verified in the
+  browser, and a prototype does not earn a second verification layer. What these
+  cover is that a component still renders the right thing from the right props:
+  the bid label switching on `isBiddingActive`, buyout appearing only where
+  `buy_now_price` is non-null, the reserve rendering as a status and never as a
+  figure. Those are the domain rules most likely to be broken by a refactor.
+- **Never write a literal `auction_start` in a fixture.** `isBiddingActive`
+  compares it against `new Date()`, so a hardcoded date silently changes meaning
+  as the calendar moves. Use `LIVE_AUCTION_START` / `SCHEDULED_AUCTION_START`
+  from `tests/support/vehicle.ts`, which are offsets from now in the dataset's
+  own zoneless local format.
+- **Render through `renderWithProviders`**, not Testing Library's `render`. A
+  Mantine primitive throws without its provider, and a component under a default
+  theme is not the component that ships — `theme.ts` is where our tokens become
+  Mantine's scale keys.
+- **`IntersectionObserver` is deliberately not polyfilled.** `VehicleImage`
+  treats its absence as "load immediately", which is the fallback path real old
+  browsers get; stubbing it would leave every card in a test showing an empty
+  frame, because nothing in jsdom ever intersects.
+- Assert on text and roles, never on class names or styling. The styling chain
+  is tokens through theme through CSS variables, and none of it survives into a
+  jsdom assertion worth writing.
+- Coverage is v8, reported as a text table plus `coverage/index.html`
+  (gitignored). The number is low by design and is not a gate — there is no
+  threshold configured, and adding one would only invite tests written for the
+  metric.
+- `.oxlintrc.json` turns `react/only-export-components` off under `tests/`. The
+  rule exists to protect Vite fast refresh, which does not apply to a test
+  helper that exports a wrapper component beside a render function.
 
 ## Deliberately not built
 
