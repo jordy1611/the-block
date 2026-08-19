@@ -45,11 +45,13 @@ src/
 
   components/           shared across features only
     common/             Money, EmptyState, SpecList, FieldLabel, CopyText,
-                        ConditionGrade, TitleBadge
+                        ConditionGrade, TitleBadge, BidStanding
     layout/             AppLayout (Outlet host), Header, Footer, PageContainer
 
   hooks/                shared React hooks
     useAsync.ts         runs a promise, returns { data, loading, error }
+    useLiveLot.ts       merges the bid store over a vehicle — the one place
+                        the dataset and the feed are put together
 
   features/             one folder per feature; each owns its route
     inventory/
@@ -69,14 +71,16 @@ src/
   services/             anything that talks to the outside world
     http.ts             CRUD over fetch: latency, error flag, !res.ok, aborts
     vehicles.ts         loadVehicles(), loadVehicleById(), searchVehicles()
-    bidding.ts          placeBid(), loadPaymentMethods()
+    bidding.ts          placeBid(), loadPaymentMethods(),
+                        subscribeToBidUpdates()
 
-  store/                global client state — empty until the bid store lands
+  store/                global client state
+    bidStore.ts         live bid state per lot, as a BehaviorSubject
 
   types/                pure type declarations, no runtime code
     vehicle.ts          the Vehicle interface
     bid.ts              BidRequest, BidReceipt, BidService, PaymentMethod,
-                        BidUpdate (declared for the update feed, unused)
+                        BidUpdate (the feed's frame), LotBidState (the store's)
 
   utils/                pure functions, no React, no I/O
     currency.ts         CAD formatting
@@ -169,14 +173,30 @@ Mantine needs `postcss.config.cjs` at the root. Do not delete it.
 - `auction_start` carries no timezone (`2026-08-19T09:00:00`), so `new Date()`
   parses it as **local** time. Keep it that way; do not append `Z`.
 - **Bids do not come from the dataset. They go to a mock API in `vite.config.ts`.**
-  `GET /api/payment-methods` and `POST /api/bids`, served as dev-server middleware
+  `GET /api/payment-methods`, `POST /api/bids`, and `GET /api/bids/stream`,
+  served as dev-server middleware
   (and preview-server middleware, so `npm run preview` works too). It exists
   because inventory is a static asset a GET happens to work against, while a POST
   to a static path is a 404 — and the alternative, a service that fakes its own
   response, would leave the app's one write path as the only one never exercising
-  `http.ts`. The middleware is stateless and deliberately dumb: it checks the
-  shape of the body and returns a receipt. Every domain rule stays client-side in
-  `utils/bidding.ts` where it can be read and tested.
+  `http.ts`. The middleware is deliberately dumb: it checks the shape of the body
+  and returns a receipt. Every domain rule stays client-side in
+  `utils/bidding.ts` where it can be read and tested — the mock's own copies of
+  the increment and the open-lane check are restated in `vite.config.ts` rather
+  than imported, because pulling runtime code out of `src/` drags those files
+  into a second TypeScript project with different resolution rules, and every
+  module they touch after it. Types are shared, because the wire format is one
+  contract; a real server would hold its own copy of the rules anyway, which is
+  what makes the client's validation worth running.
+- **The mock API holds state now, and did not before.** A broadcast of where a
+  lot stands has to be a fact somebody holds, so it keeps a sparse map of the
+  lots that have moved, seeded from the dataset on first touch. It is per
+  process and in memory: restart the dev server and every lot is back to the
+  dataset's figures. A rival bidder ticks every 11 seconds while at least one
+  client is listening, taking a lot this buyer leads half the time and any open
+  lane otherwise — without it `highBidder` would be true forever and the outbid
+  state unreachable without a second browser. A client connecting late is
+  replayed every lot that has moved, so a deep-load and a fresh load agree.
 - **`http.ts` discards the mock API's error bodies.** It throws
   `HttpError(status, url, "POST /api/bids failed with 400")`, so a specific server
   message like "Unknown payment method" never reaches the buyer. Fixing it means
@@ -209,15 +229,17 @@ validation failure into a message that arrives, if it arrives, with no way to ti
 it to the submit that caused it. So `BidReceipt.status` is `accepted` and never
 "winning": whether a bid still stands is a broadcast every watcher of the lot
 sees, and reading it out of one buyer's POST response would give them a different
-answer to everyone else's. The rest of Phase 4 adds `GET /api/bids/stream` (SSE) to the mock
-API and `subscribeToBidUpdates` to `services/bidding.ts` — a callback and an
-unsubscribe, because that is what a `BehaviorSubject` in `store/bidStore.ts`
-wants to be fed by. The store owns the RxJS, the service owns the `EventSource`,
-and neither needs to know about the other's.
+answer to everyone else's. The push channel is `GET /api/bids/stream`, server-sent
+events, read by `subscribeToBidUpdates` in `services/bidding.ts` and fed to the
+`BehaviorSubject` in `store/bidStore.ts`. SSE rather than a socket because every
+frame travels one way; nothing the app has to say goes up this channel. The
+service hands over a callback and an unsubscribe rather than an Observable: the
+store owns the RxJS, the service owns the `EventSource`, and neither needs to
+know what the other is made of.
 
 **RxJS is scoped to the two places it beats hand-rolled code.** Inventory search
 uses `debounceTime` + `distinctUntilChanged` + `switchMap` in
-`features/inventory/useVehicleSearch.ts`; the bid store will use a
+`features/inventory/useVehicleSearch.ts`; the bid store is a
 `BehaviorSubject`. Do not reach for it anywhere else — a single cached
 GET gains nothing from it. `searchVehicles()` returns a Promise like every other
 service; the pipeline wraps it, the service does not know RxJS exists.
@@ -294,13 +316,43 @@ Rules:
 
 ## State
 
-Bid state will be the only global state. It goes in `store/bidStore.ts` as a plain
-observable — a `Set` of listeners, `subscribe`, `getSnapshot`, `placeBid` —
-consumed through React's built-in `useSyncExternalStore`.
+Bid state is the only global state. It lives in `store/bidStore.ts` as a
+`BehaviorSubject` — a current value plus a multicast of every change to it —
+read through React's built-in `useSyncExternalStore`. No component imports rxjs;
+the adapter is `subscribe` + `getLot` at the bottom of the store.
 
 No Redux, no Zustand. One slice of state does not justify a state library, and a
-hand-rolled store is ~40 lines we can explain line by line. Server data is not
+hand-rolled store is a file we can explain line by line. Server data is not
 global state: it is fetched per feature through `services/`.
+
+**The store is an overlay, not a copy of the inventory.** It holds only what the
+dataset cannot know — what has changed since it was authored — keyed by vehicle
+id and sparse, so a lot nobody has bid on has no entry at all. Mirroring the 200
+records in here would make two things true at once about the same lot. The merge
+happens at the point of use, in `useLiveLot`, which returns a plain `Vehicle`
+with the feed's figures written over `current_bid` and `bid_count`; every rule in
+`utils/bidding.ts` then applies unchanged. The rule that already governs bids —
+*never read `current_bid` directly* — is what makes live updates land everywhere
+at once.
+
+**Each lot is one entry, and a write replaces only that entry.** All 200 cards
+subscribe, every one is notified of every frame, and React bails out of
+re-rendering the 199 whose entry came back `Object.is`-equal. The merged vehicle
+is built in the hook, never inside `getSnapshot`, which has to stay referentially
+stable or React loops.
+
+**Two facts per lot, held apart** (`LotBidState`): `live` is the broadcast every
+watcher receives and the only thing allowed to move the figure on the page;
+`mine` is this buyer's own receipt, which nobody else can see. Flattening them
+would let a receipt quietly become the current bid — the exact failure
+`BidReceipt.status` being `accepted` and never "winning" exists to prevent.
+`useLiveLot` derives a `standing` of `high` / `outbid` from the pair, and
+undefined until both halves have something to say.
+
+**The POST does not go through the store.** `BidModal` calls `placeBid` and
+awaits the receipt, because a rejection has to come back attached to the submit
+that caused it; it then hands the receipt to `recordReceipt`. The store records
+what this buyer bid and waits for the feed to say where the lot stands.
 
 ## Domain rules
 
@@ -362,6 +414,14 @@ global state: it is fetched per feature through `services/`.
   How contested a lot is rides on the bid count instead — "Current bid" over
   "No bids yet" says both things without either one lying. That is what `hasBids`
   is still for.
+- **"High bidder" and "Outbid" take both halves, or neither.** A frame on a lot
+  this buyer never bid on says nothing about them, and a receipt with no frame
+  behind it says only that the auction took the bid. `useLiveLot` reports a
+  standing only when the store holds both, and `BidStanding` renders nothing at
+  all otherwise — a grid of "not bidding" labels would be 200 absences saying
+  nothing. Three surfaces show it: the card, the bid bar, and the bid form's
+  receipt, which swaps its alert as the feed moves rather than freezing at the
+  moment the bid landed.
 - **Buyout is gated exactly like bidding.** The `Buy now` button renders only
   where `buy_now_price` is non-null (39 of 200) and is disabled whenever
   `isBiddingActive` is false, sharing the "Opens …" caption with `Place bid`.
@@ -403,6 +463,11 @@ tests/
   the bid label switching on `isBiddingActive`, buyout appearing only where
   `buy_now_price` is non-null, the reserve rendering as a status and never as a
   figure. Those are the domain rules most likely to be broken by a refactor.
+- **A test that needs live figures drives the store directly**, through
+  `applyBidUpdate` and `recordReceipt`, which is the same door the feed uses.
+  There is no reset export, because nothing in the app resets it either; tests
+  use a lot id of their own instead, which also makes the frame's subject
+  obvious at the point it is applied.
 - **Never write a literal `auction_start` in a fixture.** `isBiddingActive`
   compares it against `new Date()`, so a hardcoded date silently changes meaning
   as the calendar moves. Use `LIVE_AUCTION_START` / `SCHEDULED_AUCTION_START`
@@ -440,12 +505,9 @@ Visible in the UI but deliberately inert, so nobody mistakes them for bugs:
   card number, and there is no backend to send it to and no reason to hold it.
   The line is present so the section matches the real product; it is plainly not
   a control, and its tooltip says why.
-- **The bid you just placed changing the page behind it.** `placeBid` returns an
-  acknowledgement, not a bid state. Where the lot stands afterwards arrives on the
-  update channel, which is the rest of Phase 4 — see **Async conventions** above.
 - **The Buyout button inside `BuyoutModal`.** The dialog is a shell: Cancel
   closes, Buyout does nothing. Taking a lot at its buy-now price ends the auction
   for everyone watching it, so it needs what a bid needs — a POST, a receipt, and
-  the update channel to tell the other bidders the lot is gone. Wiring it to
+  a frame on the feed telling the other bidders the lot is gone. Wiring it to
   merely close the dialog would be worse than leaving it inert, because a dialog
   that dismisses itself reads as a purchase that went through.

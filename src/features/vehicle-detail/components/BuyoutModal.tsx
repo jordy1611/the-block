@@ -12,11 +12,12 @@ interface BuyoutModalProps {
  *
  * Cancel closes. **Buyout does nothing yet**, deliberately: taking a lot at its
  * buy-now price ends the auction for everyone watching it, so it needs the same
- * things a bid needs — a POST, a receipt, and the update channel to tell the
- * other bidders the lot is gone — and none of that exists until the bid store
- * lands (the rest of Phase 4). Wiring the button to close the dialog would be
- * worse than leaving it inert, because a dialog that dismisses itself reads as
- * a purchase that went through.
+ * things a bid needs — a POST, a receipt, and a frame on the feed telling the
+ * other bidders the lot is gone. The store and the feed now exist; the route
+ * and the receipt do not, and inventing what the auction says when a lot is
+ * taken is a bigger decision than it looks. Wiring the button to close the
+ * dialog would be worse than leaving it inert, because a dialog that dismisses
+ * itself reads as a purchase that went through.
  *
  * Listed under "Deliberately not built" in CLAUDE.md so it is not mistaken for
  * a bug.

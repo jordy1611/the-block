@@ -1,6 +1,7 @@
 import { Accordion, Badge, Grid, Group, List, Text } from '@mantine/core';
 
 import { SpecList } from '../../../components/common/SpecList';
+import type { LotStanding } from '../../../hooks/useLiveLot';
 import { ConditionGrade } from '../../../components/common/ConditionGrade';
 import { TitleBadge } from '../../../components/common/TitleBadge';
 import { layout, space } from '../../../styles/layouts';
@@ -12,6 +13,8 @@ import { VehicleFacts } from './VehicleFacts';
 
 interface VehicleDetailBodyProps {
   vehicle: Vehicle;
+  /** Passed straight through to the bid bar — see `useLiveLot`. */
+  standing: LotStanding;
   onPlaceBid: () => void;
   onBuyNow: () => void;
 }
@@ -28,6 +31,7 @@ interface VehicleDetailBodyProps {
  */
 export function VehicleDetailBody({
   vehicle,
+  standing,
   onPlaceBid,
   onBuyNow,
 }: VehicleDetailBodyProps) {
@@ -118,7 +122,12 @@ export function VehicleDetailBody({
       </Grid.Col>
 
       <Grid.Col span={{ base: 12, md: 5 }}>
-        <BidBar vehicle={vehicle} onPlaceBid={onPlaceBid} onBuyNow={onBuyNow} />
+        <BidBar
+          vehicle={vehicle}
+          standing={standing}
+          onPlaceBid={onPlaceBid}
+          onBuyNow={onBuyNow}
+        />
       </Grid.Col>
     </Grid>
   );

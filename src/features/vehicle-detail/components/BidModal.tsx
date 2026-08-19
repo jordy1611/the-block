@@ -14,7 +14,9 @@ import { useForm } from '@mantine/form';
 
 import { Money } from '../../../components/common/Money';
 import { SpecList } from '../../../components/common/SpecList';
+import type { LotStanding } from '../../../hooks/useLiveLot';
 import { placeBid } from '../../../services/bidding';
+import { recordReceipt } from '../../../store/bidStore';
 import { fontWeight } from '../../../styles/fonts';
 import { layout } from '../../../styles/layouts';
 import type { BidReceipt, BidServiceId } from '../../../types/bid';
@@ -60,7 +62,9 @@ function toNumber(value: number | string): number | null {
 }
 
 interface BidModalProps {
+  /** Already merged with the feed by `useLiveLot` — see `VehicleDetailModal`. */
   vehicle: Vehicle;
+  standing: LotStanding;
   opened: boolean;
   onClose: () => void;
 }
@@ -79,8 +83,19 @@ interface BidModalProps {
  * On success the form is replaced by its receipt rather than the modal closing.
  * A bid is the one irreversible thing a buyer does in this app, and dismissing
  * the dialog the instant it lands leaves them with no confirmation that it did.
+ *
+ * The lot arrives already merged with the feed, so the headline figure and the
+ * minimum both move while the form is open. Nothing is corrected under the
+ * buyer's cursor when they do: the amount they typed stays typed, and being
+ * outbid mid-form surfaces as the validation message on submit, which is the
+ * same message a too-low bid has always produced.
  */
-export function BidModal({ vehicle, opened, onClose }: BidModalProps) {
+export function BidModal({
+  vehicle,
+  standing,
+  opened,
+  onClose,
+}: BidModalProps) {
   const minimum = minimumNextBid(vehicle);
   const services = useMemo(() => bidServices(vehicle), [vehicle]);
 
@@ -138,6 +153,32 @@ export function BidModal({ vehicle, opened, onClose }: BidModalProps) {
   });
 
   /*
+   * The minimum as of the last render, for the reset below to start from.
+   *
+   * It has to be a ref rather than a dependency now that the feed moves the
+   * lot's figure: a rival bid landing while someone is filling the form would
+   * otherwise re-run the reset and wipe what they had typed. The minimum they
+   * are held to is still the live one — validation reads `minimum` directly —
+   * this only decides what the field is pre-filled with when the form opens.
+   */
+  const openingMinimum = useRef(minimum);
+  openingMinimum.current = minimum;
+
+  const resetForm = () => {
+    form.setInitialValues({
+      amount: openingMinimum.current,
+      maxAmount: '',
+      notes: '',
+      paymentMethodId: form.getValues().paymentMethodId,
+    });
+    form.reset();
+    setSelected([]);
+    setAmountShown(openingMinimum.current);
+    setFailure(null);
+    setReceipt(null);
+  };
+
+  /*
    * Reset per opening, and per lot. This component stays mounted between both —
    * the detail modal owns it — so without this a buyer who cancels on one lot
    * and bids on the next starts from the previous lot's amount, which is very
@@ -149,22 +190,11 @@ export function BidModal({ vehicle, opened, onClose }: BidModalProps) {
    */
   useEffect(() => {
     if (!opened) return;
-
-    form.setInitialValues({
-      amount: minimum,
-      maxAmount: '',
-      notes: '',
-      paymentMethodId: form.getValues().paymentMethodId,
-    });
-    form.reset();
-    setSelected([]);
-    setAmountShown(minimum);
-    setFailure(null);
-    setReceipt(null);
+    resetForm();
     // `form` is a new object each render, so listing it here would reset the
     // fields out from under whoever is typing in them.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opened, vehicle.id, minimum]);
+  }, [opened, vehicle.id]);
 
   // A submit that outlives its dialog has nowhere left to report back to.
   useEffect(() => () => inFlight.current?.abort(), []);
@@ -195,6 +225,13 @@ export function BidModal({ vehicle, opened, onClose }: BidModalProps) {
         },
         controller.signal,
       );
+      /*
+       * Into the store before it goes on screen. The receipt is this buyer's
+       * own record of the bid — where the lot stands afterwards arrives on the
+       * feed, and the store is where the two are held side by side so the rest
+       * of the app can tell them apart.
+       */
+      recordReceipt(acknowledged);
       setReceipt(acknowledged);
     } catch (error) {
       // An aborted request was cancelled by us, not refused by the auction.
@@ -246,18 +283,46 @@ export function BidModal({ vehicle, opened, onClose }: BidModalProps) {
 
           {/*
             Accepted is not the same as winning, and the gap between them is
-            worth saying out loud rather than leaving a buyer to assume. Where
-            the lot actually stands arrives on the update channel — see
-            `subscribeToBidUpdates` in `services/bidding.ts` — which is the
-            next phase, not this one.
+            worth saying out loud rather than leaving a buyer to assume. The
+            receipt above is fixed — it is what this buyer bid — and the alert
+            below is not, because it reports where the lot stands, which is the
+            feed's to say and can change while this dialog sits open.
           */}
-          <Alert color="lane" title="Accepted, not yet confirmed as high bid">
-            Where this leaves you against the other bidders comes back on the
-            auction&rsquo;s live feed. That feed is the next phase, so the figure
-            on the page behind this will not move yet.
-          </Alert>
+          {standing === 'high' && (
+            <Alert
+              color="var(--app-status-positive)"
+              title="You hold the high bid"
+            >
+              The auction has this lot at{' '}
+              {formatCurrency(displayBid(vehicle))}. If another bidder takes it
+              past you, this will say so without you having to reload.
+            </Alert>
+          )}
 
-          <Group justify="flex-end">
+          {standing === 'outbid' && (
+            <Alert
+              color="var(--app-status-caution)"
+              title="You have been outbid"
+            >
+              Another bidder has taken this lot to{' '}
+              {formatCurrency(displayBid(vehicle))}. Your bid stands as placed —
+              it is simply no longer the one in front.
+            </Alert>
+          )}
+
+          {standing === undefined && (
+            <Alert color="lane" title="Accepted, not yet confirmed as high bid">
+              Where this leaves you against the other bidders comes back on the
+              auction&rsquo;s live feed, separately from this acknowledgement.
+            </Alert>
+          )}
+
+          <Group justify="flex-end" gap={layout.inlineGap}>
+            {standing === 'outbid' && (
+              <Button variant="default" onClick={resetForm}>
+                Bid again
+              </Button>
+            )}
             <Button onClick={onClose}>Done</Button>
           </Group>
         </Stack>

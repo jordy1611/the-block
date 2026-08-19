@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 
 import { EmptyState } from '../../components/common/EmptyState';
 import { useAsync } from '../../hooks/useAsync';
+import { useLiveLot } from '../../hooks/useLiveLot';
 import { loadVehicleById } from '../../services/vehicles';
 import { breakpoint, layout } from '../../styles/layouts';
 import { BidModal } from './components/BidModal';
@@ -30,7 +31,16 @@ import { VehicleDetailBody } from './components/VehicleDetailBody';
 export function VehicleDetailModal() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
-  const { data: vehicle, loading, error } = useAsync(() => loadVehicleById(id), id);
+  const { data: fetched, loading, error } = useAsync(() => loadVehicleById(id), id);
+
+  /*
+   * Merged once, here, and handed down. The detail body, the bid bar and the
+   * bid form are all looking at the same lot, and a buyer who sees one figure
+   * in the header and another in the form has been shown a bug. It also means
+   * the form's minimum rises with the feed: being outbid while the dialog is
+   * open changes what a valid bid is.
+   */
+  const { vehicle, standing } = useLiveLot(fetched);
 
   // A modal that has to scroll internally on a phone is worse than a full
   // screen, and this one is dense.
@@ -96,6 +106,7 @@ export function VehicleDetailModal() {
         {vehicle && (
           <VehicleDetailBody
             vehicle={vehicle}
+            standing={standing}
             onPlaceBid={() => setBidding(true)}
             onBuyNow={() => setBuyingNow(true)}
           />
@@ -105,6 +116,7 @@ export function VehicleDetailModal() {
       {vehicle && (
         <BidModal
           vehicle={vehicle}
+          standing={standing}
           opened={bidding}
           onClose={() => setBidding(false)}
         />

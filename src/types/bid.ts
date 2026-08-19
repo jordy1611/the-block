@@ -67,12 +67,14 @@ export interface BidReceipt {
 }
 
 /**
- * One pushed change to a lot's bidding — the shape the webhook will deliver.
+ * One pushed change to a lot's bidding — the shape the feed delivers.
  *
- * Declared now so the POST above can stay an acknowledgement rather than
- * quietly becoming the app's source of truth for the current bid. The rest of
- * Phase 4 wires `subscribeToBidUpdates` in `services/bidding.ts` to a
- * `BehaviorSubject` in `store/bidStore.ts`; nothing consumes this yet.
+ * This, not the POST response, is where the app learns what a lot is at.
+ * `GET /api/bids/stream` emits one of these per change, to every client
+ * watching; `services/bidding.ts` receives them and `store/bidStore.ts` holds
+ * them. It is deliberately the whole standing of the lot rather than a delta,
+ * so a client that connects late or misses a frame is corrected by the next
+ * one it does see.
  */
 export interface BidUpdate {
   vehicleId: string;
@@ -81,4 +83,25 @@ export interface BidUpdate {
   /** Whether the receiving buyer still holds the high bid on this lot. */
   highBidder: boolean;
   at: string;
+}
+
+/**
+ * What the store holds for one lot — two facts, from two different places.
+ *
+ * They are kept apart rather than flattened because they are not equally
+ * public. `live` is the broadcast every watcher of the lot receives, and it is
+ * the only thing allowed to move the figure on the page. `mine` is this
+ * buyer's own accepted bid, which nobody else can see and which says nothing
+ * about whether it still stands — collapsing the two would let a receipt
+ * quietly become the current bid, which is exactly what `BidReceipt.status`
+ * being `accepted` and never "winning" exists to prevent.
+ *
+ * Both are optional: a lot the feed has not mentioned and this buyer has not
+ * bid on has no entry in the store at all.
+ */
+export interface LotBidState {
+  /** Where the lot stands, per the feed. */
+  live: BidUpdate | undefined;
+  /** The last bid this buyer had accepted on the lot. */
+  mine: BidReceipt | undefined;
 }

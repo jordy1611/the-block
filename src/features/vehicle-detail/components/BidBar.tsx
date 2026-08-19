@@ -1,7 +1,9 @@
 import { Button, Group, Paper, Stack, Text } from '@mantine/core';
 
+import { BidStanding } from '../../../components/common/BidStanding';
 import { FieldLabel } from '../../../components/common/FieldLabel';
 import { Money } from '../../../components/common/Money';
+import type { LotStanding } from '../../../hooks/useLiveLot';
 import { fontWeight } from '../../../styles/fonts';
 import { layout, space } from '../../../styles/layouts';
 import type { Vehicle } from '../../../types/vehicle';
@@ -21,7 +23,9 @@ const RESERVE_COLOR = {
 } as const;
 
 interface BidBarProps {
+  /** Already merged with the feed by `useLiveLot` — see `VehicleDetailModal`. */
   vehicle: Vehicle;
+  standing: LotStanding;
   onPlaceBid: () => void;
   onBuyNow: () => void;
 }
@@ -38,8 +42,17 @@ interface BidBarProps {
  * end of the read.
  *
  * The reserve is shown as a status and never as a figure — see `reserveStatus`.
+ *
+ * The bid figure moves with the feed, and the buyer's own standing sits under
+ * it: a bid placed here is answered by a receipt, but whether it still leads is
+ * a broadcast, and this is where a buyer looks to find out.
  */
-export function BidBar({ vehicle, onPlaceBid, onBuyNow }: BidBarProps) {
+export function BidBar({
+  vehicle,
+  standing,
+  onPlaceBid,
+  onBuyNow,
+}: BidBarProps) {
   const live = isBiddingActive(vehicle);
   const reserve = reserveStatus(vehicle);
 
@@ -55,6 +68,7 @@ export function BidBar({ vehicle, onPlaceBid, onBuyNow }: BidBarProps) {
               {live ? 'Current bid' : 'Starting bid'}
             </FieldLabel>
             <Money value={displayBid(vehicle)} fz="h2" fw={fontWeight.bold} />
+            <BidStanding standing={standing} />
           </Stack>
 
           {vehicle.buy_now_price !== null && (

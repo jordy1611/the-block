@@ -17,6 +17,7 @@ describe('BidBar', () => {
     renderWithProviders(
       <BidBar
         vehicle={makeVehicle({ auction_start: LIVE_AUCTION_START, current_bid: 16_200 })}
+        standing={undefined}
         onPlaceBid={onPlaceBid}
         onBuyNow={noop}
       />,
@@ -37,6 +38,7 @@ describe('BidBar', () => {
           auction_start: SCHEDULED_AUCTION_START,
           buy_now_price: 19_900,
         })}
+        standing={undefined}
         onPlaceBid={noop}
         onBuyNow={noop}
       />,
@@ -53,6 +55,7 @@ describe('BidBar', () => {
     const { rerender } = renderWithProviders(
       <BidBar
         vehicle={makeVehicle({ auction_start: LIVE_AUCTION_START, buy_now_price: null })}
+        standing={undefined}
         onPlaceBid={noop}
         onBuyNow={onBuyNow}
       />,
@@ -63,6 +66,7 @@ describe('BidBar', () => {
     rerender(
       <BidBar
         vehicle={makeVehicle({ auction_start: LIVE_AUCTION_START, buy_now_price: 19_900 })}
+        standing={undefined}
         onPlaceBid={noop}
         onBuyNow={onBuyNow}
       />,
@@ -77,6 +81,7 @@ describe('BidBar', () => {
     const { rerender, container } = renderWithProviders(
       <BidBar
         vehicle={makeVehicle({ current_bid: 16_200, reserve_price: 20_000 })}
+        standing={undefined}
         onPlaceBid={noop}
         onBuyNow={noop}
       />,
@@ -88,6 +93,7 @@ describe('BidBar', () => {
     rerender(
       <BidBar
         vehicle={makeVehicle({ current_bid: 21_000, reserve_price: 20_000 })}
+        standing={undefined}
         onPlaceBid={noop}
         onBuyNow={noop}
       />,
@@ -97,10 +103,36 @@ describe('BidBar', () => {
     rerender(
       <BidBar
         vehicle={makeVehicle({ reserve_price: null })}
+        standing={undefined}
         onPlaceBid={noop}
         onBuyNow={noop}
       />,
     );
     expect(screen.getByText('None')).toBeInTheDocument();
+  });
+
+  it('reports where the buyer stands, and stays quiet before they bid', () => {
+    const { rerender } = renderWithProviders(
+      <BidBar
+        vehicle={makeVehicle({ auction_start: LIVE_AUCTION_START })}
+        standing={undefined}
+        onPlaceBid={noop}
+        onBuyNow={noop}
+      />,
+    );
+
+    expect(screen.queryByText('High bidder')).not.toBeInTheDocument();
+    expect(screen.queryByText('Outbid')).not.toBeInTheDocument();
+
+    rerender(
+      <BidBar
+        vehicle={makeVehicle({ auction_start: LIVE_AUCTION_START })}
+        standing="high"
+        onPlaceBid={noop}
+        onBuyNow={noop}
+      />,
+    );
+
+    expect(screen.getByText('High bidder')).toBeInTheDocument();
   });
 });

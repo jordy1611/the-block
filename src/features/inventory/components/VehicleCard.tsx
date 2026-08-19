@@ -3,9 +3,11 @@ import { Link } from 'react-router';
 
 import { fontWeight, lineHeight } from '../../../styles/fonts';
 import { iconSize, layout, radius, space } from '../../../styles/layouts';
+import { BidStanding } from '../../../components/common/BidStanding';
 import { FieldLabel } from '../../../components/common/FieldLabel';
 import { Money } from '../../../components/common/Money';
 import { ConditionGrade } from '../../../components/common/ConditionGrade';
+import { useLiveLot } from '../../../hooks/useLiveLot';
 import type { Vehicle } from '../../../types/vehicle';
 import { displayBid, hasBids, isBiddingActive } from '../../../utils/bidding';
 import { formatAuctionDayTime } from '../../../utils/date';
@@ -69,8 +71,15 @@ function bidCountLabel(vehicle: Vehicle): string {
  * Before it opens there is no current bid to speak of. How contested a lot
  * actually is rides on the bid count beside it, which is the honest place for
  * it: "Current bid / No bids yet" says both things without either lying.
+ *
+ * The figures come from `useLiveLot`, not from the prop: a rival bid on the
+ * feed has to move the grid, or a buyer scanning it is reading a page that was
+ * true when it loaded. `vehicle` is still what the parent handed down for
+ * everything the auction cannot change — the photos, the odometer, the lane
+ * time — and `lot` is the same record with the live figures over it.
  */
 export function VehicleCard({ vehicle }: VehicleCardProps) {
+  const { vehicle: lot, standing } = useLiveLot(vehicle);
   const biddingActive = isBiddingActive(vehicle);
 
   return (
@@ -193,7 +202,7 @@ export function VehicleCard({ vehicle }: VehicleCardProps) {
                 is what bidding will start at, whatever the dataset carries. */}
             <Amount
               label={biddingActive ? 'Current bid' : 'Starting bid'}
-              value={displayBid(vehicle)}
+              value={displayBid(lot)}
             />
             {/* Present on 39 of 200 lots — conditional, never "$null". */}
             {vehicle.buy_now_price !== null && (
@@ -201,9 +210,12 @@ export function VehicleCard({ vehicle }: VehicleCardProps) {
             )}
           </Group>
           {biddingActive && (
-            <Text fz="xs" c="dimmed">
-              {bidCountLabel(vehicle)}
-            </Text>
+            <Stack gap={layout.tightGap} align="flex-end">
+              <BidStanding standing={standing} />
+              <Text fz="xs" c="dimmed">
+                {bidCountLabel(lot)}
+              </Text>
+            </Stack>
           )}
         </Group>
       </Stack>

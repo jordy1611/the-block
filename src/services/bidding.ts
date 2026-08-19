@@ -1,5 +1,10 @@
 import { http } from './http';
-import type { BidReceipt, BidRequest, PaymentMethod } from '../types/bid';
+import type {
+  BidReceipt,
+  BidRequest,
+  BidUpdate,
+  PaymentMethod,
+} from '../types/bid';
 
 /**
  * Bid submission and the accounts a bid can be charged against.
@@ -52,7 +57,7 @@ export function invalidatePaymentMethods(): void {
 /**
  * Place a bid.
  *
- * A POST, and it stays a POST once the update channel below is live. Those are
+ * A POST, and it stays a POST now that the update channel below is live. Those are
  * two different things: this is the buyer asking the auction to take an amount,
  * and it needs a request/response pair — an acknowledgement, a receipt id, an
  * error the form can render next to the field that caused it. A push channel
@@ -71,26 +76,52 @@ export function placeBid(
   return http.post<BidReceipt>(BIDS_URL, request, signal);
 }
 
+/* -------------------------------------------------------------------------- */
+/* The update channel                                                         */
+/* -------------------------------------------------------------------------- */
+
+const BID_STREAM_URL = '/api/bids/stream';
+
 /**
- * Not built yet — the update channel, and the rest of Phase 4.
+ * Where the app learns what a lot is actually at.
  *
- * `GET /api/bids/stream` as server-sent events, one `BidUpdate` per change to a
- * lot's bidding. It lands here rather than in the store so that the store keeps
- * its one job, holding state, and everything that talks to the outside world
- * stays in `services/`.
+ * Server-sent events rather than a socket: every frame travels one way, from
+ * the auction to the buyer. Nothing the app has to say goes up this channel —
+ * a bid is `placeBid` above, and it stays a request with a response, because a
+ * rejection has to come back attached to the submit that caused it. A socket
+ * would buy a second direction neither side uses and cost a protocol upgrade,
+ * a reconnect loop, and a heartbeat to write by hand.
  *
- * The shape it will take:
+ * A callback and an unsubscribe, deliberately — not an Observable. The store
+ * owns the RxJS; this owns the EventSource, and neither needs to know what the
+ * other is made of. Swapping SSE for a socket, or for polling, is a change to
+ * this function alone.
  *
- *   export function subscribeToBidUpdates(
- *     onUpdate: (update: BidUpdate) => void,
- *   ): () => void
+ * It does not go through `http.ts`: there is no request/response pair to add
+ * latency to or to fail, `EventSource` is not `fetch`, and a stream that opens
+ * once and lives for the session has nothing the client's abort handling
+ * applies to. Reconnection is the browser's job and it does it on its own.
  *
- * A plain callback and an unsubscribe, because that is what a `BehaviorSubject`
- * in `store/bidStore.ts` wants to be fed by — the store owns the RxJS, the
- * service owns the EventSource, and neither needs to know about the other's.
- *
- * Note what this does *not* change: `placeBid` still returns a receipt and
- * still throws on rejection. The stream tells the app where the bidding stands;
- * the POST tells this buyer whether their own bid was taken. Collapsing the two
- * would leave a submitted form with nothing to wait on.
+ * Absent `EventSource` — jsdom, an old browser — this is a no-op subscription
+ * and the app renders the dataset's figures, which is the same thing it shows
+ * before the first frame arrives.
  */
+export function subscribeToBidUpdates(
+  onUpdate: (update: BidUpdate) => void,
+): () => void {
+  if (typeof EventSource === 'undefined') return () => {};
+
+  const source = new EventSource(BID_STREAM_URL);
+
+  source.onmessage = (event: MessageEvent<string>) => {
+    try {
+      onUpdate(JSON.parse(event.data) as BidUpdate);
+    } catch {
+      // A frame we cannot parse is one lot's figure missed, and the next frame
+      // for that lot carries its whole standing again. Tearing the feed down
+      // over it would cost every other lot as well.
+    }
+  };
+
+  return () => source.close();
+}
