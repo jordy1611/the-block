@@ -125,6 +125,10 @@ export const lightColors = {
   /** Auction state only — live bids, high bidder, reserve. Kept scarce. */
   accent: palette.amberMid,
 
+  /** Status readouts that are not a condition grade: reserve met, and so on. */
+  statusPositive: palette.emeraldDeep,
+  statusCaution: palette.goldDeep,
+
   gradeHigh: palette.emeraldDeep,
   gradeMedium: palette.goldDeep,
   gradeLow: palette.tangerineDeep,
@@ -156,6 +160,9 @@ export const darkColors: ColorScheme = {
   brand: palette.petrolTealMid,
   accent: palette.amberMid,
 
+  statusPositive: palette.emeraldBright,
+  statusCaution: palette.goldBright,
+
   gradeHigh: palette.emeraldBright,
   gradeMedium: palette.goldBright,
   gradeLow: palette.tangerineBright,
@@ -167,6 +174,7 @@ export const darkColors: ColorScheme = {
   titleRebuiltSurface: palette.ember,
   titleRebuiltText: palette.creamWhite,
 };
+
 
 
 

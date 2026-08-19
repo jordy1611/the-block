@@ -1,7 +1,17 @@
 import { Text, type TextProps } from '@mantine/core';
 
 import { fontWeight } from '../../styles/fonts';
-import { gradeColor } from './gradeColor';
+
+/**
+ * Three buckets, not a gradient — a glance cue for scanning a grid, not a
+ * second scale to learn. Module-private: nothing outside this file has ever
+ * needed the mapping on its own.
+ */
+function gradeColor(grade: number): string {
+  if (grade >= 4) return 'var(--app-grade-high)';
+  if (grade >= 3) return 'var(--app-grade-medium)';
+  return 'var(--app-grade-low)';
+}
 
 interface ConditionGradeProps extends TextProps {
   /** 1.2 to 5.0 in this dataset. */
@@ -46,6 +56,7 @@ export function ConditionGrade({
     </Text>
   );
 }
+
 
 
 

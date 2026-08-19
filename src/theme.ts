@@ -112,6 +112,9 @@ const roleVariables = (colors: ColorScheme) => ({
   '--app-brand': colors.brand,
   '--app-accent': colors.accent,
 
+  '--app-status-positive': colors.statusPositive,
+  '--app-status-caution': colors.statusCaution,
+
   '--app-grade-high': colors.gradeHigh,
   '--app-grade-medium': colors.gradeMedium,
   '--app-grade-low': colors.gradeLow,
@@ -146,6 +149,7 @@ export const cssVariablesResolver: CSSVariablesResolver = () => ({
   light: roleVariables(lightColors),
   dark: roleVariables(darkColors),
 });
+
 
 
 

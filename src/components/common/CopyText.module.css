@@ -1,0 +1,46 @@
+/* Values are `--app-*` variables emitted by the theme's cssVariablesResolver. */
+.copy {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--mantine-radius-sm);
+  /*
+   * UnstyledButton re-asserts the medium font size, so the value would render
+   * a step larger than the field beside it. Inheriting all three keeps the
+   * affordance from changing the typography it was dropped into.
+   */
+  font: inherit;
+  color: inherit;
+  transition:
+    color var(--app-duration-fast) var(--app-easing),
+    background-color var(--app-duration-fast) var(--app-easing);
+}
+
+.copy:hover {
+  background-color: var(--app-surface-sunken);
+  color: var(--app-brand);
+}
+
+.copy:focus-visible {
+  outline: var(--app-border-width-focus) solid var(--app-brand);
+  outline-offset: var(--app-border-width);
+}
+
+/* The icon stays quiet until the value is worth acting on. */
+.icon {
+  opacity: 0.55;
+  transition: opacity var(--app-duration-fast) var(--app-easing);
+}
+
+.copy:hover .icon,
+.copy:focus-visible .icon {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .copy,
+  .icon {
+    transition: none;
+  }
+}
+
+

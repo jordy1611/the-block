@@ -83,10 +83,17 @@ export const layout = {
   emptyStatePaddingY: '4rem',
   /** The load-more sentinel. Has to occupy layout to be observable at all. */
   sentinelHeight: '1px',
+
+  /** 1088px — wide enough for gallery and facts side by side, no wider. */
+  modalWidth: '68rem',
+  /** 88px — gallery thumbnails: big enough to tell two angles apart. */
+  thumbnailSize: '5.5rem',
 } as const;
 
 /** Icon sizes, in px because SVG width/height attributes take numbers. */
 export const iconSize = {
+  /** 14 — inline with body text, where 16 would outweigh the words. */
+  xs: 14,
   /** 16 — inside inputs. */
   sm: 16,
   /** 18 — icon buttons. */
@@ -111,6 +118,8 @@ export const breakpoint = {
   /** 1408px */
   xl: '88em',
 } as const;
+
+
 
 
 

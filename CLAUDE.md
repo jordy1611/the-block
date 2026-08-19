@@ -33,7 +33,7 @@ src/
   theme.ts              maps styles/ tokens onto Mantine — holds no values itself
   index.css             base layer only — no colours, no sizes
 
-  assets/               images and icons
+  assets/               Vite template leftovers, unreferenced — safe to delete
 
   styles/               design tokens — the source of truth for every visual value
     colors.ts           palette (the only hex codes in the app) + light/dark roles
@@ -41,24 +41,25 @@ src/
     layouts.ts          spacing scale, radii, borders, named measurements
     constants.ts        motion, elevation, z-index, aspect ratios
 
-  components/           shared across pages only
-    common/             domain-agnostic — Money, EmptyState, SpecList
+  components/           shared across features only
+    common/             Money, EmptyState, SpecList, FieldLabel, CopyText,
+                        ConditionGrade, TitleBadge
     layout/             AppLayout (Outlet host), Header, Footer, PageContainer
-    vehicle/            shared domain — ConditionGrade, TitleBadge
 
   hooks/                shared React hooks
     useAsync.ts         runs a promise, returns { data, loading, error }
 
-  pages/                one folder per route (the detail route is a modal)
+  features/             one folder per feature; each owns its route
     inventory/
       InventoryPage.tsx
-      useVehicleSearch.ts   page-scoped hook — the RxJS search pipeline
+      useVehicleSearch.ts   feature-scoped hook — the RxJS search pipeline
       intersection.ts   shared observer registry for the grid
-      components/       page-scoped — VehicleCard, SearchBar, VehiclePhotos,
+      components/       feature-scoped — VehicleCard, SearchBar, VehiclePhotos,
                         VehicleImage, LoadMoreTrigger
     vehicle-detail/
       VehicleDetailModal.tsx   nested route — renders over the inventory grid
-      components/       page-scoped — BidPanel, PhotoGallery
+      components/       feature-scoped — VehicleDetailBody, PhotoGallery,
+                        VehicleFacts, BidBar, BidModal
     not-found/
       NotFoundPage.tsx
 
@@ -66,8 +67,7 @@ src/
     http.ts             CRUD over fetch: latency, error flag, !res.ok, aborts
     vehicles.ts         loadVehicles(), loadVehicleById(), searchVehicles()
 
-  store/                global client state
-    bidStore.ts         observable store + useBids hook (Phase 4)
+  store/                global client state — empty until the bid store lands
 
   types/                pure type declarations, no runtime code
     vehicle.ts          the Vehicle interface
@@ -85,12 +85,20 @@ public/
 
 Where things go:
 
-- **Colocate first.** A component used by one page lives in that page's
-  `components/` folder — and so does a hook only that page uses. Promote to
-  `src/components/` or `src/hooks/` only when a second page needs it. Do not
+- **Colocate first.** A component used by one feature lives in that feature's
+  `components/` folder — and so does a hook only that feature uses. Promote to
+  `src/components/` or `src/hooks/` only when a second feature needs it. Do not
   pre-promote.
-- `components/common/` is domain-agnostic — if it mentions a vehicle, it belongs
-  in `components/vehicle/`.
+- **`features/`, not `pages/`.** A folder here owns a slice of the product, not a
+  URL: `vehicle-detail` renders as a modal over the inventory grid rather than as
+  a page of its own, and `inventory` owns a hook, an observer registry, and six
+  components besides its route. Naming the folder after the route was already
+  inaccurate.
+- `components/common/` holds everything shared across features, domain or not.
+  There was a `components/vehicle/` tier for shared domain components; it never
+  held more than two files, and "is this domain enough" is a question with no
+  useful answer at this size. One shared folder, one rule: used by one feature it
+  colocates, used by two it moves to `common/`.
 - `types/` holds declarations only. If a file in `types/` emits JavaScript, it is
   in the wrong folder.
 - `utils/` is pure functions. Anything touching fetch, storage, or React state is
@@ -161,11 +169,11 @@ Mantine needs `postcss.config.cjs` at the root. Do not delete it.
   explicit flag (`?simulateError`) — never a random failure rate.
 - `IntersectionObserver` does two jobs in the inventory grid: image lazy-loading
   and progressive card rendering (24 at a time). One observer per rootMargin
-  watches every target — `pages/inventory/intersection.ts` — never one per card.
+  watches every target — `features/inventory/intersection.ts` — never one per card.
 
 **RxJS is scoped to the two places it beats hand-rolled code.** Inventory search
 uses `debounceTime` + `distinctUntilChanged` + `switchMap` in
-`pages/inventory/useVehicleSearch.ts`; the bid store will use a
+`features/inventory/useVehicleSearch.ts`; the bid store will use a
 `BehaviorSubject` (Phase 4). Do not reach for it anywhere else — a single cached
 GET gains nothing from it. `searchVehicles()` returns a Promise like every other
 service; the pipeline wraps it, the service does not know RxJS exists.
@@ -225,8 +233,9 @@ Rules:
 
 - **Primitives come from Mantine.** Do not hand-roll buttons, inputs, modals,
   badges, or skeletons. `components/common/` is for composing them, not replacing them.
-- **Domain components are ours.** Page-scoped ones colocate under that page;
-  shared ones (`ConditionGrade`, `TitleBadge`) live in `components/vehicle/`.
+- **Domain components are ours.** Feature-scoped ones colocate under that feature;
+  shared ones (`ConditionGrade`, `TitleBadge`, `Money`) live in
+  `components/common/`.
 - Never format a number inline — money and odometer go through `utils/`, and
   every dollar figure renders through `<Money />`.
 - Never hardcode a colour, size, or spacing value — see **Styling** above.
@@ -237,13 +246,13 @@ Rules:
 
 ## State
 
-Bid state is the only global state. It lives in `store/bidStore.ts` as a plain
+Bid state will be the only global state. It goes in `store/bidStore.ts` as a plain
 observable — a `Set` of listeners, `subscribe`, `getSnapshot`, `placeBid` —
 consumed through React's built-in `useSyncExternalStore`.
 
 No Redux, no Zustand. One slice of state does not justify a state library, and a
 hand-rolled store is ~40 lines we can explain line by line. Server data is not
-global state: it is fetched per page through `services/`.
+global state: it is fetched per feature through `services/`.
 
 ## Domain rules
 
@@ -252,6 +261,9 @@ global state: it is fetched per page through `services/`.
   The one exception is the chip over the card photo, which drops the denominator
   (`showScale={false}`) because the colour band carries the comparison there and
   the space does not allow more. The detail view always shows the full form.
+- **The reserve price is never rendered.** `reserveStatus()` returns met / not-met /
+  none; the figure is the seller's private floor, and publishing it tells every buyer
+  exactly what to bid. `reserve_price` is null on 60 of 200, which is its own state.
 - `salvage` and `rebuilt` titles are visually flagged by `TitleBadge`. Buyer trust
   signal, keep it — it lives on the detail view, having been taken off the card to
   keep that surface to one glance's worth of information.
@@ -259,13 +271,23 @@ global state: it is fetched per page through `services/`.
   or scheduled, from `auction_start` against now. Evaluated per render, not on a
   ticker — a lot crossing its start time with the page open waits for the next
   navigation. Distinct from `hasBids`: a lot can be open with nobody having bid.
-- **Countdowns use one shared ticker** at the app level, never one interval per
-  card — 200 cards means 200 intervals otherwise. Same rule for observers.
-  Cards show coarse granularity (`3d 4h`); only the detail view counts seconds.
-  Always handle the elapsed case; never render negative time.
+- **There are no countdowns.** Auction timing renders as an absolute local time
+  ("Starts Aug 28, 4:00pm" on the card, with the weekday in the modal). A live
+  countdown was considered and dropped: it needs one app-level ticker to avoid 200
+  intervals, an elapsed case, and a negative-time guard — real work that tells a
+  buyer nothing the timestamp does not. If it comes back, one shared ticker, never
+  one interval per card. Same rule as the observers.
 - **The grid renders 24 cards at a time.** All 200 at once is a 235ms long task.
   The count in the page description is the match count, not the rendered count.
 
 ## Deliberately not built
 
 No auth, seller workflows, checkout, payments, or backend.
+
+Visible in the UI but deliberately inert, so nobody mistakes them for bugs:
+
+- **The heart on a vehicle card.** A watchlist needs somewhere to persist and a
+  place to read it back; neither is in scope. It is a visual affordance only.
+- **Live countdowns.** See the domain rules above.
+- **The bid form.** `BidModal` opens and shows the real minimum next bid; the
+  input, validation, and confirmation are Phase 4.

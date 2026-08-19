@@ -74,11 +74,12 @@ normalize them relative to 'now'"), so the provided generator was re-run. Only `
 The script's output path was updated to `public/data/` in the same change so it cannot
 silently write to the old location.
 
-**Countdowns are in scope because the dates now support them.** With auctions 17 hours to
-7 days out, a countdown carries real information for a buyer deciding what to watch. It is
-built with a single app-level ticker rather than an interval per card, and cards render
-coarse granularity while only the detail view counts seconds — 200 cards updating every
-second would be waste, not polish.
+**Countdowns were scoped in, then dropped.** With auctions days out rather than minutes,
+a countdown says nothing an absolute time does not — "Starts Aug 28, 4:00pm" is what a
+buyer puts in their calendar. Building one properly needs an app-level ticker to avoid
+200 intervals, an elapsed case, and a guard against rendering negative time: real work
+for no added information. The card and modal show the timestamp instead, and
+`isBiddingActive` covers the only state that changes behaviour.
 
 **Services expose Promises, not Observables — RxJS is scoped to where it wins.** The data
 layer was first built on RxJS and then deliberately reverted. For a single cached GET of a
@@ -158,7 +159,7 @@ ambiguous — it could equally mean the app has nothing to say. A stated clean t
 positive signal and costs one badge.
 
 **One IntersectionObserver for the whole grid, not one per card.** Same reasoning as the
-countdown ticker: 200 cards would mean 200 observers, and the observer API is built to
+countdown ticker would have needed: 200 cards would mean 200 observers, and the observer API is built to
 watch many targets at once. Images are requested 300px before entering the viewport —
 lazy loading the user can see happening is just slow loading.
 
@@ -354,3 +355,73 @@ returning to it re-fetches nothing but does reset scroll position and drop back 
 first batch of 24 cards. With a modal the buyer closes it and is exactly where they
 were — which matters most in Phase 4, where a bid placed in the modal has to show on the
 card behind it.
+
+**Condition grade and title status appear once, in the condition report's header.**
+They were also in the facts column, which meant a buyer reading top to bottom met the
+same grade twice and had to work out whether the two were saying different things. The
+accordion header is where they belong: the grade and the title are both answers to
+"what shape is this in", and they sit next to the report that explains them.
+
+**The detail modal splits gallery-and-detail from facts-and-action.** Photos and the
+long-form accordion sit in the wider left column; odometer, location, timing,
+drivetrain, seller, lot, and VIN run down the narrower right column, with the bid box
+closing it out. The right column ends up reading as one argument — here is the vehicle,
+here is where and when it sells, here is the money, here is the button — while the left
+column is for looking and then digging.
+
+**Long-form sections all start collapsed, and more than one can be open.** The modal
+opens at roughly one screen, so the photo, the money, and the at-a-glance facts are what
+a buyer lands on; which detail they read first is their choice rather than ours.
+Mantine's Accordion is single-open by default, which meant opening the spec sheet
+collapsed the condition report — the two answer different questions, so `multiple` is
+correct here.
+
+**The reserve is shown as a status, never as a figure.** "Reserve met" is the part that
+changes a buyer's decision; the number itself is the seller's private floor, and
+printing it tells every buyer exactly what to bid. `reserve_price` being null is a third
+state — no reserve at all — not a missing value.
+
+**The bid box ends the facts column rather than sitting under the photo.** In a narrow
+column the figures wrap onto two rows and the button spans the full width, which makes
+the action the last thing in the read instead of a control competing with the gallery
+for the same horizontal band.
+
+**The bid modal is component state, not a route.** Unlike the vehicle itself, a
+half-filled bid form is not something anyone should be able to link to, and it has
+nothing worth restoring on reload.
+
+**Stacking two modals needed the lower one to stop listening.** With both open, one
+Escape closed both and navigated back to the grid, because each modal handles the key
+independently. `closeOnEscape`/`closeOnClickOutside` on the detail modal are gated on
+the bid modal being closed, so dismissal unwinds one layer at a time.
+
+**The modal's gallery loads eagerly while the grid's images stay lazy.** Everything in
+the modal is the reason it was opened; deferring it behind an IntersectionObserver would
+only delay the one image the buyer asked for. That is why `PhotoGallery` does not reuse
+the grid's `VehicleImage` — different loading semantics, not duplicated logic.
+
+**`components/vehicle/` was folded into `components/common/`.** The two-tier split —
+domain-agnostic in `common/`, shared domain components in `vehicle/` — never held more
+than two files, and it forced a judgment call ("is this domain enough?") on every new
+shared component without changing where anyone would look for one. One shared folder
+with one rule is easier to follow: used by one page it colocates, used by two it moves
+to `common/`.
+
+**`gradeColor` went back inside `ConditionGrade.tsx` as a private function.** It was
+split out when the card's overlay chip looked like it would need the mapping directly;
+the chip ended up rendering `<ConditionGrade>` instead, so the export existed for a
+caller that never arrived. Unexported, it also does not trip the Fast Refresh lint rule
+that caused the split in the first place.
+
+**`src/pages/` was renamed to `src/features/`.** A folder in there owns a slice of the
+product, not a URL. `vehicle-detail` renders as a modal over the inventory grid rather
+than as a page of its own, and `inventory` holds a search hook, a shared observer
+registry, and six components alongside its route — none of which "page" describes.
+Nothing about the structure changed, only the name that was already inaccurate.
+
+**`CopyText` inherits its typography rather than setting it.** VINs and lot numbers
+exist to be pasted elsewhere, and selecting seventeen monospace characters by hand is a
+small repeated annoyance. Mantine's `UnstyledButton` re-asserts the medium font size, so
+the value rendered a step larger than the field beside it until the component was told
+to inherit font and colour — the affordance should not change the typography it is
+dropped into.

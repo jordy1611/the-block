@@ -51,8 +51,28 @@ export function isBiddingActive(
   return hasStarted(vehicle.auction_start, now);
 }
 
+export type ReserveStatus = 'none' | 'met' | 'not-met';
+
+/**
+ * Where the bidding stands against the seller's reserve.
+ *
+ * Deliberately returns a status and never the reserve figure. A reserve is the
+ * seller's private floor — publishing it tells every buyer exactly what to bid
+ * and nothing more. "Reserve met" is the part that changes a buyer's decision.
+ *
+ * `reserve_price` is null on 60 of 200 lots, which is a real state of its own:
+ * no reserve at all, and the highest bid wins.
+ */
+export function reserveStatus(
+  vehicle: Pick<Vehicle, 'current_bid' | 'starting_bid' | 'reserve_price'>,
+): ReserveStatus {
+  if (vehicle.reserve_price === null) return 'none';
+  return displayBid(vehicle) >= vehicle.reserve_price ? 'met' : 'not-met';
+}
+
 /** Whether a proposed amount clears the floor. */
 export function isValidBid(vehicle: Biddable, amount: number): boolean {
   return Number.isFinite(amount) && amount >= minimumNextBid(vehicle);
 }
+
 

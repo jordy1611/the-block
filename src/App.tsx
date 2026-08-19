@@ -1,9 +1,9 @@
 import { BrowserRouter, Route, Routes } from 'react-router';
 
 import { AppLayout } from './components/layout/AppLayout';
-import { InventoryPage } from './pages/inventory/InventoryPage';
-import { NotFoundPage } from './pages/not-found/NotFoundPage';
-import { VehicleDetailModal } from './pages/vehicle-detail/VehicleDetailModal';
+import { InventoryPage } from './features/inventory/InventoryPage';
+import { NotFoundPage } from './features/not-found/NotFoundPage';
+import { VehicleDetailModal } from './features/vehicle-detail/VehicleDetailModal';
 
 /**
  * App shell and routing. One page, a nested modal route, and a catch-all.
@@ -32,4 +32,5 @@ export default function App() {
     </BrowserRouter>
   );
 }
+
 

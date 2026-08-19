@@ -1,10 +1,11 @@
 import { Box, Card, Divider, Group, Stack, Text } from '@mantine/core';
 import { Link } from 'react-router';
 
-import { fontWeight, letterSpacing, lineHeight } from '../../../styles/fonts';
+import { fontWeight, lineHeight } from '../../../styles/fonts';
 import { iconSize, layout, radius, space } from '../../../styles/layouts';
+import { FieldLabel } from '../../../components/common/FieldLabel';
 import { Money } from '../../../components/common/Money';
-import { ConditionGrade } from '../../../components/vehicle/ConditionGrade';
+import { ConditionGrade } from '../../../components/common/ConditionGrade';
 import type { Vehicle } from '../../../types/vehicle';
 import { displayBid, hasBids, isBiddingActive } from '../../../utils/bidding';
 import { formatAuctionDayTime } from '../../../utils/date';
@@ -45,15 +46,7 @@ function HeartIcon() {
 function Amount({ label, value }: { label: string; value: number }) {
   return (
     <Stack gap={0}>
-      <Text
-        fz="xs"
-        c="dimmed"
-        tt="uppercase"
-        fw={fontWeight.semibold}
-        lts={letterSpacing.label}
-      >
-        {label}
-      </Text>
+      <FieldLabel>{label}</FieldLabel>
       <Money value={value} fz="xl" fw={fontWeight.bold} />
     </Stack>
   );
@@ -216,6 +209,7 @@ export function VehicleCard({ vehicle }: VehicleCardProps) {
     </Card>
   );
 }
+
 
 
 
